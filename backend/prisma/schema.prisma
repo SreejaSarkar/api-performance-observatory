@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id                String             @id @default(cuid())
+  name              String
+  apiKey            String             @unique
+  createdAt         DateTime           @default(now())
+  alertEvents       AlertEvent[]
+  alertRules        AlertRule[]
+  anomalies         Anomaly[]
+  endpointBaselines EndpointBaseline[]
+  metrics           ApiMetric[]
+  webhooks          Webhook[]
+}
+
+model ApiMetric {
+  id         String   @id @default(cuid())
+  endpoint   String
+  latency    Int
+  requests   Int
+  statusCode Int
+  createdAt  DateTime @default(now())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@index([projectId, endpoint, createdAt])
+  @@index([projectId, statusCode, createdAt])
+}
+
+model AlertRule {
+  id        String       @id @default(cuid())
+  projectId String
+  name      String
+  metric    String
+  threshold Float
+  enabled   Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  severity  String       @default("MEDIUM")
+
+  events    AlertEvent[]
+
+  project   Project      @relation(fields: [projectId], references: [id])
+}
+
+model AlertEvent {
+  id                   String    @id @default(cuid())
+  projectId            String
+  ruleId               String
+  value                Float
+
+  triggeredAt          DateTime  @default(now())
+
+  lastNotificationAt   DateTime  @default(now())
+
+  acknowledged         Boolean   @default(false)
+  acknowledgedAt       DateTime?
+  resolved             Boolean   @default(false)
+  resolvedAt           DateTime?
+
+  project Project   @relation(fields: [projectId], references: [id])
+  rule    AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+}
+
+model Webhook {
+  id        String   @id @default(cuid())
+  projectId String
+  url       String
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id])
+}
+
+model Anomaly {
+  id         String    @id @default(cuid())
+  projectId  String
+  type       String
+  endpoint   String
+  value      Float
+  threshold  Float
+  severity   String    @default("WARNING")
+  resolved   Boolean   @default(false)
+  resolvedAt DateTime?
+  detectedAt DateTime  @default(now())
+  project    Project   @relation(fields: [projectId], references: [id])
+}
+
+model EndpointBaseline {
+  id           String   @id @default(cuid())
+  projectId    String
+  endpoint     String
+  avgLatency   Float
+  stdDevLatency Float
+  avgErrorRate Float
+  avgRequests  Float
+  sampleCount  Int
+  calculatedAt DateTime @default(now())
+  project      Project  @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, endpoint])
+}

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/

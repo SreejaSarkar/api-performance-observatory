@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "AlertEvent" ADD COLUMN     "lastNotificationAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
