@@ -2,7 +2,8 @@ import { DashboardData }
     from "@/types/dashboard";
 
 const API_URL =
-    "http://localhost:3001";
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:3001";
 
 export async function getDashboard(hours = 72):
     Promise<DashboardData> {
