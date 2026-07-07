@@ -5,38 +5,9 @@ import {
 } from "@/lib/reports-api";
 
 export default function ExportCard() {
-  const handleDownload =
-    async () => {
-      const blob =
-        await downloadReport();
-
-      const url =
-        window.URL.createObjectURL(
-          blob,
-        );
-
-      const link =
-        document.createElement(
-          "a",
-        );
-
-      link.href = url;
-
-      link.download =
-        "metrics-report.csv";
-
-      document.body.appendChild(
-        link,
-      );
-
-      link.click();
-
-      link.remove();
-
-      window.URL.revokeObjectURL(
-        url,
-      );
-    };
+  const handleDownload = async () => {
+  await downloadReport(72);
+};
 
   return (
     <div
