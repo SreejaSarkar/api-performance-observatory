@@ -4,7 +4,10 @@ import { Project }
     from "@/types/project";
 import { useRouter }
     from "next/navigation";
+import toast from "react-hot-toast";
 import { buttonStyles } from "../ui/ButtonStyles";
+import { setSelectedProject }
+    from "@/lib/selected-project";
 
 interface Props {
     project: Project;
@@ -21,8 +24,8 @@ export default function ProjectCard({
                 project.apiKey,
             );
 
-            alert(
-                "API Key copied",
+            toast.success(
+                "API key copied to clipboard.",
             );
         };
 
@@ -82,14 +85,11 @@ export default function ProjectCard({
             </button>
             <button
                 onClick={() => {
-                    localStorage.setItem(
-                        "apiKey",
-                        project.apiKey,
-                    );
-                    localStorage.setItem(
-                        "projectId",
-                        project.id,
-                    );
+                    setSelectedProject({
+                        id: project.id,
+                        apiKey: project.apiKey,
+                        name: project.name,
+                    });
 
                     router.push(
                         "/dashboard",

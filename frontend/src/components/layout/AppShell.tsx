@@ -3,6 +3,8 @@ import Sidebar
 
 import MobileNavbar
   from "./MobileNavbar";
+import { AuthSessionProvider } from "@/components/auth/AuthSessionProvider";
+import AuthSessionWatcher from "@/components/auth/AuthSessionWatcher";
 
 export default function AppShell({
   children,
@@ -10,34 +12,40 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className="
-        flex
-        min-h-screen
-      "
-    >
-      <Sidebar />
-
+    <AuthSessionProvider>
       <div
         className="
-          flex-1
-          min-w-0
           flex
-          flex-col
+          h-screen
+          overflow-hidden
         "
       >
-        <MobileNavbar />
+        <AuthSessionWatcher />
 
-        <main
+        <Sidebar />
+
+        <div
           className="
             flex-1
-            overflow-x-hidden
-            overflow-y-auto
+            min-w-0
+            min-h-0
+            flex
+            flex-col
           "
         >
-          {children}
-        </main>
+          <MobileNavbar />
+
+          <main
+            className="
+              flex-1
+              overflow-x-hidden
+              overflow-y-auto
+            "
+          >
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </AuthSessionProvider>
   );
 }

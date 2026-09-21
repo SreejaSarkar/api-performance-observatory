@@ -1,47 +1,37 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable } from '@nestjs/common';
 
-import { PrismaService }
-    from "../prisma/prisma.service";
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class WebhooksService {
-    constructor(
-        private readonly prisma: PrismaService,
-    ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-    async create(
-        projectId: string,
-        url: string,
-    ) {
-        return this.prisma.webhook.create({
-            data: {
-                projectId,
-                url,
-            },
-        });
-    }
+  async create(projectId: string, url: string) {
+    return this.prisma.webhook.create({
+      data: {
+        projectId,
+        url,
+      },
+    });
+  }
 
-    async findAll(
-        projectId: string,
-    ) {
-        return this.prisma.webhook.findMany({
-            where: {
-                projectId,
-            },
+  async findAll(projectId: string) {
+    return this.prisma.webhook.findMany({
+      where: {
+        projectId,
+      },
 
-            orderBy: {
-                createdAt: "desc",
-            },
-        });
-    }
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
 
-    async remove(
-        id: string,
-    ) {
-        return this.prisma.webhook.delete({
-            where: {
-                id,
-            },
-        });
-    }
+  async remove(id: string) {
+    return this.prisma.webhook.delete({
+      where: {
+        id,
+      },
+    });
+  }
 }

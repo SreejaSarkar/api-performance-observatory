@@ -23,6 +23,7 @@ export class BatchMetricDto {
       {
         endpoint:
           "/api/payments",
+        method: 'GET',
         latency: 120,
         requests: 50,
         statusCode: 200,
@@ -30,6 +31,7 @@ export class BatchMetricDto {
       {
         endpoint:
           "/api/orders",
+        method: 'POST',
         latency: 850,
         requests: 10,
         statusCode: 500,

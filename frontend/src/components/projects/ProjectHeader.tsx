@@ -1,5 +1,10 @@
+"use client";
+
+import { useSelectedProject }
+    from "@/lib/selected-project";
+
 interface Props {
-    projectName: string;
+    projectName?: string;
 
     status?: string;
 
@@ -11,13 +16,21 @@ export default function ProjectHeader({
     status = "Healthy",
     subtitle = "Monitoring last 72 hours",
 }: Props) {
+    const selectedProject =
+        useSelectedProject();
+
+    const resolvedProjectName =
+        selectedProject?.name ||
+        projectName ||
+        "Selected project";
+
     return (
         <div
             className="
-                mb-10
                 flex
                 items-center
                 justify-between
+                gap-4
             "
         >
             <div>
@@ -28,7 +41,7 @@ export default function ProjectHeader({
                         tracking-tight
                     "
                 >
-                    {projectName}
+                    {resolvedProjectName}
                 </h1>
 
                 <p

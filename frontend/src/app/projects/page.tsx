@@ -8,6 +8,11 @@ import {
 import {
     getProjects,
 } from "@/lib/project-api";
+import {
+    getCurrentUser,
+    isSessionExpiredError,
+    logout,
+} from "@/lib/auth-api";
 
 import ProjectCard
     from "@/components/projects/ProjectCard";
@@ -17,9 +22,16 @@ import ProjectForm
 
 import { Project }
     from "@/types/project";
+import { User }
+    from "@/types/user";
 import ProjectsPageSkeleton from "@/components/projects/ProjectPageSkeleton";
 import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
+import { buttonStyles }
+    from "@/components/ui/ButtonStyles";
+import toast from "react-hot-toast";
+import { clearSelectedProject }
+    from "@/lib/selected-project";
 
 export default function ProjectsPage() {
     const [
@@ -40,6 +52,9 @@ export default function ProjectsPage() {
         setError,
     ] = useState("");
 
+    const [user, setUser] =
+        useState<User | null>(null);
+
     const loadProjects =
         async () => {
             try {
@@ -53,9 +68,11 @@ export default function ProjectsPage() {
                 setProjects(
                     data,
                 );
-            } catch (err: any) {
+            } catch (err) {
                 setError(
-                    err?.message ||
+                    err instanceof Error
+                        ? err.message
+                        :
                     "Failed to load projects.",
                 );
             } finally {
@@ -63,9 +80,71 @@ export default function ProjectsPage() {
             }
         };
 
+    async function initializePage() {
+            try {
+                const currentUser =
+                    await getCurrentUser();
+
+                setUser(
+                    currentUser,
+                );
+
+                const data =
+                    await getProjects();
+
+                setProjects(
+                    data,
+                );
+                setError("");
+            } catch (err) {
+                if (isSessionExpiredError(err)) {
+                    return;
+                }
+
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to load projects.",
+                );
+            } finally {
+                setLoading(false);
+            }
+        }
+
     useEffect(() => {
-        loadProjects();
+        const timeoutId =
+            window.setTimeout(() => {
+                void initializePage();
+            }, 0);
+
+        return () => {
+            window.clearTimeout(
+                timeoutId,
+            );
+        };
     }, []);
+
+    async function handleLogout() {
+        try {
+            await logout();
+
+            clearSelectedProject();
+
+            toast.success(
+                "Signed out",
+            );
+
+            window.location.assign(
+                "/auth/login",
+            );
+        } catch (err) {
+            toast.error(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to sign out",
+            );
+        }
+    }
 
     if (loading) {
         return (
@@ -100,15 +179,46 @@ export default function ProjectsPage() {
                 mx-auto
             "
         >
-            <h1
+            <div
                 className="
-                    text-3xl
-                    font-bold
+                    flex
+                    flex-col
+                    gap-4
                     mb-6
+                    md:flex-row
+                    md:items-center
+                    md:justify-between
                 "
             >
-                Projects
-            </h1>
+                <div>
+                    <h1
+                        className="
+                            text-3xl
+                            font-bold
+                        "
+                    >
+                        Projects
+                    </h1>
+
+                    <p className="text-slate-400 mt-2">
+                        {user
+                            ? `Signed in as ${user.name}`
+                            : "Sign in to manage your monitored projects."}
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={
+                        handleLogout
+                    }
+                    className={
+                        buttonStyles.dark
+                    }
+                >
+                    Sign out
+                </button>
+            </div>
 
             <ProjectForm
                 onCreated={

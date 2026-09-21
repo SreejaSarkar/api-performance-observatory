@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -23,12 +24,29 @@ export class MetricsService {
     });
   }
 
+  private toApiMetricCreateInput(
+    dto: CreateMetricDto,
+    projectId: string,
+  ): Prisma.ApiMetricUncheckedCreateInput {
+    return {
+      endpoint: dto.endpoint,
+      method: dto.method,
+      latency: dto.latency,
+      requests: dto.requests,
+      statusCode: dto.statusCode,
+      requestId: dto.requestId,
+      responseSize: dto.responseSize,
+      userAgent: dto.userAgent,
+      environment: dto.environment,
+      metadata: dto.metadata as Prisma.InputJsonValue | undefined,
+      createdAt: dto.timestamp ? new Date(dto.timestamp) : undefined,
+      projectId,
+    };
+  }
+
   async createMetric(dto: CreateMetricDto, projectId: string) {
     const metric = await this.prisma.apiMetric.create({
-      data: {
-        ...dto,
-        projectId,
-      },
+      data: this.toApiMetricCreateInput(dto, projectId),
     });
 
     await this.invalidateCache();
@@ -39,14 +57,14 @@ export class MetricsService {
 
   async createMany(metrics: CreateMetricDto[], projectId: string) {
     await this.prisma.apiMetric.createMany({
-      data: metrics.map((m) => ({
-        ...m,
-        projectId,
-      })),
+      data: metrics.map((metric) => this.toApiMetricCreateInput(metric, projectId)),
     });
 
     await this.invalidateCache();
-    this.metricsGateway.emitMetric(projectId, { batch: true, count: metrics.length });
+    this.metricsGateway.emitMetric(projectId, {
+      batch: true,
+      count: metrics.length,
+    });
 
     return { inserted: metrics.length };
   }
@@ -147,9 +165,10 @@ export class MetricsService {
 
     const totalRequests = stats._sum.requests ?? 0;
     const failedRequests = errorStats._sum.requests ?? 0;
-    const errorRate = totalRequests === 0
-      ? 0
-      : Number(((failedRequests / totalRequests) * 100).toFixed(2));
+    const errorRate =
+      totalRequests === 0
+        ? 0
+        : Number(((failedRequests / totalRequests) * 100).toFixed(2));
 
     const summary = {
       avgLatency: Math.round(stats._avg.latency ?? 0),
@@ -214,53 +233,61 @@ export class MetricsService {
 
     const startDate = this.getStartDate(hours);
 
-    const grouped = await this.prisma.apiMetric.groupBy({
-      by: ['endpoint'],
-      where: {
-        projectId,
-        createdAt: {
-          gte: startDate,
-        },
-      },
-      _avg: {
-        latency: true,
-      },
-      _sum: {
-        requests: true,
-      },
-      _count: {
-        id: true,
-      },
-    });
-
-    const result = await Promise.all(
-      grouped.map(async (endpoint) => {
-        const errorCount = await this.prisma.apiMetric.count({
-          where: {
-            projectId,
-            endpoint: endpoint.endpoint,
-            createdAt: {
-              gte: startDate,
-            },
-            statusCode: {
-              gte: 400,
-            },
+    const [grouped, groupedErrors] = await Promise.all([
+      this.prisma.apiMetric.groupBy({
+        by: ['endpoint'],
+        where: {
+          projectId,
+          createdAt: {
+            gte: startDate,
           },
-        });
-
-        return {
-          endpoint: endpoint.endpoint,
-
-          avgLatency: Math.round(endpoint._avg.latency ?? 0),
-
-          requests: endpoint._sum.requests ?? 0,
-
-          errorRate: Number(
-            ((errorCount / endpoint._count.id) * 100).toFixed(2),
-          ),
-        };
+        },
+        _avg: {
+          latency: true,
+        },
+        _sum: {
+          requests: true,
+        },
+        _count: {
+          id: true,
+        },
       }),
+      this.prisma.apiMetric.groupBy({
+        by: ['endpoint'],
+        where: {
+          projectId,
+          createdAt: {
+            gte: startDate,
+          },
+          statusCode: {
+            gte: 400,
+          },
+        },
+        _count: {
+          id: true,
+        },
+      }),
+    ]);
+
+    const errorCountByEndpoint = new Map(
+      groupedErrors.map((item) => [item.endpoint, item._count.id]),
     );
+
+    const result = grouped.map((endpoint) => {
+      const errorCount = errorCountByEndpoint.get(endpoint.endpoint) ?? 0;
+
+      return {
+        endpoint: endpoint.endpoint,
+
+        avgLatency: Math.round(endpoint._avg.latency ?? 0),
+
+        requests: endpoint._sum.requests ?? 0,
+
+        errorRate: Number(
+          ((errorCount / endpoint._count.id) * 100).toFixed(2),
+        ),
+      };
+    });
 
     result.sort((a, b) => b.avgLatency - a.avgLatency);
 
@@ -610,21 +637,32 @@ export class MetricsService {
     const avgLatency = stats._avg.latency ?? 0;
     const totalRequests = stats._sum.requests ?? 0;
     const failedRequests = errorStats._sum.requests ?? 0;
-    const errorRate = totalRequests === 0 ? 0 : (failedRequests / totalRequests) * 100;
+    const errorRate =
+      totalRequests === 0 ? 0 : (failedRequests / totalRequests) * 100;
 
     // Latency score: 100 at 0ms, 0 at 2000ms+ (non-linear curve)
-    const latencyScore = Math.max(0, Math.min(100, Math.round(100 * Math.exp(-avgLatency / 500))));
+    const latencyScore = Math.max(
+      0,
+      Math.min(100, Math.round(100 * Math.exp(-avgLatency / 500))),
+    );
 
     // Error score: 100 at 0% errors, 0 at 50%+ errors (weighted heavily)
-    const errorScore = Math.max(0, Math.round(100 - (errorRate * 2)));
+    const errorScore = Math.max(0, Math.round(100 - errorRate * 2));
 
     // Traffic score: based on requests per hour
     const requestsPerHour = totalRequests / hours;
-    const trafficScore = requestsPerHour > 10 ? 100 : requestsPerHour > 1 ? 75 : requestsPerHour > 0 ? 50 : 25;
+    const trafficScore =
+      requestsPerHour > 10
+        ? 100
+        : requestsPerHour > 1
+          ? 75
+          : requestsPerHour > 0
+            ? 50
+            : 25;
 
     // Weighted health: errors matter most (50%), latency (35%), traffic (15%)
     const healthScore = Math.round(
-      (errorScore * 0.5) + (latencyScore * 0.35) + (trafficScore * 0.15),
+      errorScore * 0.5 + latencyScore * 0.35 + trafficScore * 0.15,
     );
 
     let status = 'HEALTHY';
@@ -898,6 +936,14 @@ export class MetricsService {
   }
 
   async getComparison(projectId: string, hours = 24) {
+    const cacheKey = `metrics-comparison:${projectId}:${hours}`;
+
+    const cached = await this.redisService.get(cacheKey);
+
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const now = Date.now();
     const currentStart = new Date(now - hours * 60 * 60 * 1000);
     const previousStart = new Date(now - 2 * hours * 60 * 60 * 1000);
@@ -909,24 +955,42 @@ export class MetricsService {
         select: { latency: true, requests: true, statusCode: true },
       }),
       this.prisma.apiMetric.findMany({
-        where: { projectId, createdAt: { gte: previousStart, lt: previousEnd } },
+        where: {
+          projectId,
+          createdAt: { gte: previousStart, lt: previousEnd },
+        },
         select: { latency: true, requests: true, statusCode: true },
       }),
     ]);
 
-    const computeStats = (metrics: { latency: number; requests: number; statusCode: number }[]) => {
-      if (!metrics.length) return { avgLatency: 0, p95Latency: 0, errorRate: 0, totalRequests: 0, availability: 100 };
+    const computeStats = (
+      metrics: { latency: number; requests: number; statusCode: number }[],
+    ) => {
+      if (!metrics.length)
+        return {
+          avgLatency: 0,
+          p95Latency: 0,
+          errorRate: 0,
+          totalRequests: 0,
+          availability: 100,
+        };
 
       const latencies = metrics.map((m) => m.latency).sort((a, b) => a - b);
       const totalRequests = metrics.reduce((s, m) => s + m.requests, 0);
-      const totalErrors = metrics.filter((m) => m.statusCode >= 400).reduce((s, m) => s + m.requests, 0);
+      const totalErrors = metrics
+        .filter((m) => m.statusCode >= 400)
+        .reduce((s, m) => s + m.requests, 0);
 
       return {
-        avgLatency: Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length),
+        avgLatency: Math.round(
+          latencies.reduce((a, b) => a + b, 0) / latencies.length,
+        ),
         p95Latency: latencies[Math.floor(latencies.length * 0.95)] || 0,
         errorRate: Number(((totalErrors / totalRequests) * 100).toFixed(2)),
         totalRequests,
-        availability: Number(((1 - totalErrors / totalRequests) * 100).toFixed(3)),
+        availability: Number(
+          ((1 - totalErrors / totalRequests) * 100).toFixed(3),
+        ),
       };
     };
 
@@ -938,7 +1002,7 @@ export class MetricsService {
       return Number((((curr - prev) / prev) * 100).toFixed(1));
     };
 
-    return {
+    const comparison = {
       current,
       previous,
       changes: {
@@ -950,9 +1014,21 @@ export class MetricsService {
       },
       periodHours: hours,
     };
+
+    await this.redisService.set(cacheKey, JSON.stringify(comparison), 60);
+
+    return comparison;
   }
 
   async getEndpointDetail(projectId: string, endpoint: string, hours = 72) {
+    const cacheKey = `metrics-endpoint-detail:${projectId}:${endpoint}:${hours}`;
+
+    const cached = await this.redisService.get(cacheKey);
+
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
     const startDate = this.getStartDate(hours);
 
     const metrics = await this.prisma.apiMetric.findMany({
@@ -962,23 +1038,48 @@ export class MetricsService {
         createdAt: { gte: startDate },
       },
       select: {
+        method: true,
         latency: true,
         requests: true,
         statusCode: true,
+        requestId: true,
+        responseSize: true,
+        userAgent: true,
+        environment: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' },
     });
 
     if (!metrics.length) {
-      return { endpoint, latencyTrend: [], errorBreakdown: [], stats: null };
+      const emptyResponse = {
+        endpoint,
+        latencyTrend: [],
+        errorBreakdown: [],
+        methodBreakdown: [],
+        environmentBreakdown: [],
+        recentSamples: [],
+        stats: null,
+      };
+
+      await this.redisService.set(cacheKey, JSON.stringify(emptyResponse), 60);
+
+      return emptyResponse;
     }
 
     // Group by hour for trend data
-    const hourlyMap = new Map<string, { latencies: number[]; requests: number; errors: number; count: number }>();
+    const hourlyMap = new Map<
+      string,
+      { latencies: number[]; requests: number; errors: number; count: number }
+    >();
+    const methodMap = new Map<string, number>();
+    const environmentMap = new Map<string, number>();
+    let responseSizeTotal = 0;
+    let responseSizeCount = 0;
 
     for (const m of metrics) {
-      const hourKey = new Date(m.createdAt).toISOString().slice(0, 13) + ':00:00Z';
+      const hourKey =
+        new Date(m.createdAt).toISOString().slice(0, 13) + ':00:00Z';
       const existing = hourlyMap.get(hourKey);
       if (existing) {
         existing.latencies.push(m.latency);
@@ -993,6 +1094,20 @@ export class MetricsService {
           count: 1,
         });
       }
+
+      const method = m.method ?? 'UNKNOWN';
+      methodMap.set(method, (methodMap.get(method) ?? 0) + m.requests);
+
+      const environment = m.environment ?? 'unspecified';
+      environmentMap.set(
+        environment,
+        (environmentMap.get(environment) ?? 0) + m.requests,
+      );
+
+      if (m.responseSize != null) {
+        responseSizeTotal += m.responseSize;
+        responseSizeCount += 1;
+      }
     }
 
     const latencyTrend = Array.from(hourlyMap.entries()).map(([time, data]) => {
@@ -1006,6 +1121,14 @@ export class MetricsService {
         errorRate: Number(((data.errors / data.count) * 100).toFixed(2)),
       };
     });
+
+    const methodBreakdown = Array.from(methodMap.entries())
+      .map(([method, requests]) => ({ method, requests }))
+      .sort((a, b) => b.requests - a.requests);
+
+    const environmentBreakdown = Array.from(environmentMap.entries())
+      .map(([environment, requests]) => ({ environment, requests }))
+      .sort((a, b) => b.requests - a.requests);
 
     // Error breakdown by status code
     const statusMap = new Map<number, number>();
@@ -1022,17 +1145,49 @@ export class MetricsService {
     const allLatencies = metrics.map((m) => m.latency).sort((a, b) => a - b);
     const totalRequests = metrics.reduce((s, m) => s + m.requests, 0);
     const totalErrors = metrics.filter((m) => m.statusCode >= 400).length;
+    const recentSamples = [...metrics]
+      .slice(-12)
+      .reverse()
+      .map((metric) => ({
+        method: metric.method ?? 'UNKNOWN',
+        statusCode: metric.statusCode,
+        latency: metric.latency,
+        requests: metric.requests,
+        responseSize: metric.responseSize,
+        requestId: metric.requestId,
+        userAgent: metric.userAgent,
+        environment: metric.environment,
+        timestamp: metric.createdAt,
+      }));
 
     const stats = {
-      avgLatency: Math.round(allLatencies.reduce((a, b) => a + b, 0) / allLatencies.length),
+      avgLatency: Math.round(
+        allLatencies.reduce((a, b) => a + b, 0) / allLatencies.length,
+      ),
       p95Latency: allLatencies[Math.floor(allLatencies.length * 0.95)] || 0,
       p99Latency: allLatencies[Math.floor(allLatencies.length * 0.99)] || 0,
       peakLatency: allLatencies[allLatencies.length - 1] || 0,
       totalRequests,
       errorRate: Number(((totalErrors / metrics.length) * 100).toFixed(2)),
+      avgResponseSize:
+        responseSizeCount > 0
+          ? Math.round(responseSizeTotal / responseSizeCount)
+          : null,
       dataPoints: metrics.length,
     };
 
-    return { endpoint, latencyTrend, errorBreakdown, stats };
+    const response = {
+      endpoint,
+      latencyTrend,
+      errorBreakdown,
+      methodBreakdown,
+      environmentBreakdown,
+      recentSamples,
+      stats,
+    };
+
+    await this.redisService.set(cacheKey, JSON.stringify(response), 60);
+
+    return response;
   }
 }

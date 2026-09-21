@@ -43,9 +43,10 @@ import ErrorState
 import { toast } from "react-hot-toast";
 import CreateAlertRuleModal from "@/components/alerts/CreateAlertRuleModal";
 import { useRequireProject } from "@/lib/useRequireProject";
+import StickyPageHeader from "@/components/layout/StickyPageHeader";
 
 export default function AlertsPage() {
-  useRequireProject();
+  const hasProject = useRequireProject();
   const [
     stats,
     setStats,
@@ -142,8 +143,22 @@ export default function AlertsPage() {
     };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!hasProject) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [hasProject]);
+
+  if (!hasProject) {
+    return null;
+  }
 
   const handleCreateRule = async () => {
     try {
@@ -283,15 +298,16 @@ export default function AlertsPage() {
         md:p-8
       "
       >
-        <ProjectHeader
-          projectName="Project 5"
-          status={
-            stats.openAlerts > 0
-              ? "Critical"
-              : "Healthy"
-          }
-          subtitle="Alert monitoring and incident response"
-        />
+        <StickyPageHeader>
+          <ProjectHeader
+            status={
+              stats.openAlerts > 0
+                ? "Critical"
+                : "Healthy"
+            }
+            subtitle="Alert monitoring and incident response"
+          />
+        </StickyPageHeader>
 
         {/* Stats */}
         <div

@@ -7,11 +7,78 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+  GITHUB
+}
+
+model User {
+  id             String                @id @default(cuid())
+  email          String                @unique
+  passwordHash   String?
+  name           String
+  avatarUrl      String?
+  isEmailVerified Boolean              @default(false)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  memberships    ProjectMembership[]
+  accounts       UserAccount[]
+  refreshTokens  RefreshToken[]
+}
+
+model ProjectMembership {
+  id         String      @id @default(cuid())
+  userId     String
+  projectId  String
+  role       ProjectRole @default(MEMBER)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId, role])
+}
+
+model UserAccount {
+  id                 String       @id @default(cuid())
+  userId             String
+  provider           AuthProvider
+  providerAccountId  String
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
 model Project {
   id                String             @id @default(cuid())
   name              String
   apiKey            String             @unique
   createdAt         DateTime           @default(now())
+  memberships       ProjectMembership[]
   alertEvents       AlertEvent[]
   alertRules        AlertRule[]
   anomalies         Anomaly[]
@@ -23,9 +90,15 @@ model Project {
 model ApiMetric {
   id         String   @id @default(cuid())
   endpoint   String
+  method     String?
   latency    Int
   requests   Int
   statusCode Int
+  requestId  String?
+  responseSize Int?
+  userAgent  String?
+  environment String?
+  metadata   Json?
   createdAt  DateTime @default(now())
   projectId  String
   project    Project  @relation(fields: [projectId], references: [id])

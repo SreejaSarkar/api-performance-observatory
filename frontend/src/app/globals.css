@@ -1,23 +1,58 @@
 @import "tailwindcss";
 
+:root {
+  --font-body: "Plus Jakarta Sans", sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --page-bg:
+    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 28%),
+    radial-gradient(circle at 85% 15%, rgba(251, 191, 36, 0.12), transparent 24%),
+    radial-gradient(circle at bottom center, rgba(56, 189, 248, 0.08), transparent 30%),
+    linear-gradient(180deg, #081121 0%, #020617 100%);
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
 
-  background:
-    radial-gradient(circle at top,
-      #0f172a,
-      #020617);
+  background: var(--page-bg);
 
   color: white;
 
   min-height: 100vh;
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-body);
+  letter-spacing: -0.01em;
+}
+
+body {
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(circle at center, black 20%, transparent 80%);
+  opacity: 0.35;
 }
 
 * {
   box-sizing: border-box;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.04em;
 }
 
 a {

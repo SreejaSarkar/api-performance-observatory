@@ -285,6 +285,9 @@ export class AlertsService {
       where: {
         projectId,
       },
+      orderBy: {
+        triggeredAt: 'desc',
+      },
       include: {
         rule: true,
       },

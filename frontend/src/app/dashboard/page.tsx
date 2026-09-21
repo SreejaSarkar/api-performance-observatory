@@ -1,6 +1,7 @@
 "use client";
 
 import {
+    useCallback,
     useEffect,
     useState,
 } from "react";
@@ -15,7 +16,6 @@ import MetricCard
 import {
     DashboardData,
 } from "@/types/dashboard";
-import { getLatencyDistribution, getSlowEndpoints, getTraffic, getTrend, getComparison } from "@/lib/metrics-api";
 import dynamic from "next/dynamic";
 const LatencyDistributionChart = dynamic(() => import("@/components/charts/LatencyDistributionChart"), { ssr: false });
 const TrafficChart = dynamic(() => import("@/components/charts/TrafficChart"), { ssr: false });
@@ -35,7 +35,6 @@ import {
     PieChart,
 } from "lucide-react";
 import SlowEndpointsCard from "@/components/dashboard/SlowEndpointsCard";
-import { getEvents } from "@/lib/alerts-api";
 import RecentAlertsCard from "@/components/dashboard/RecentAlertsCard";
 import HealthOverviewCard from "@/components/dashboard/HealthOverviewCard";
 import TimeRangeSelector from "@/components/dashboard/TimeRangeSelector";
@@ -45,9 +44,11 @@ import ErrorState from "@/components/common/ErrorState";
 import { useRequireProject } from "@/lib/useRequireProject";
 import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
 import LiveIndicator from "@/components/dashboard/LiveIndicator";
+import StickyPageHeader from "@/components/layout/StickyPageHeader";
 
 export default function DashboardPage() {
-    useRequireProject();
+    const hasProject =
+        useRequireProject();
     const [
         dashboard,
         setDashboard,
@@ -55,37 +56,6 @@ export default function DashboardPage() {
         useState<
             DashboardData | null
         >(null);
-    const [
-        trend,
-        setTrend,
-    ] = useState([]);
-
-    const [
-        traffic,
-        setTraffic,
-    ] = useState([]);
-
-    const [
-        distribution,
-        setDistribution,
-    ] = useState<any>(
-        {},
-    );
-
-    const [
-        slowEndpoints,
-        setSlowEndpoints,
-    ] = useState([]);
-
-    const [
-        recentAlerts,
-        setRecentAlerts,
-    ] = useState([]);
-
-    const [
-        comparison,
-        setComparison,
-    ] = useState<any>(null);
 
     const [
         hours,
@@ -102,74 +72,56 @@ export default function DashboardPage() {
         setError,
     ] = useState("");
 
-    async function load() {
+    const load =
+        useCallback(
+            async () => {
         try {
-            if (!dashboard) setLoading(true);
+            setLoading(true);
 
             setError("");
 
-            const [
-                dashboardData,
-                trendData,
-                trafficData,
-                distributionData,
-                slowEndpointsData,
-                alertEventsData,
-                comparisonData,
-            ] = await Promise.all([
-                getDashboard(hours),
-                getTrend(hours),
-                getTraffic(hours),
-                getLatencyDistribution(hours),
-                getSlowEndpoints(),
-                getEvents(),
-                getComparison(hours),
-            ]);
+            const dashboardData =
+                await getDashboard(hours);
 
             setDashboard(
                 dashboardData,
             );
-
-            setTrend(
-                trendData,
-            );
-
-            setTraffic(
-                trafficData,
-            );
-
-            setDistribution(
-                distributionData,
-            );
-
-            setSlowEndpoints(
-                slowEndpointsData,
-            );
-
-            setRecentAlerts(
-                alertEventsData.slice(
-                    0,
-                    5,
-                ),
-            );
-
-            setComparison(comparisonData);
-        } catch (err: any) {
+        } catch (err: unknown) {
             setError(
-                err?.message ||
-                "Failed to load dashboard.",
+                err instanceof Error
+                    ? err.message
+                    : "Failed to load dashboard.",
             );
         } finally {
             setLoading(false);
         }
-    }
+            },
+            [hours],
+        );
 
 
     const { connected } = useRealtimeRefresh(load);
 
     useEffect(() => {
-        load();
-    }, [hours]);
+        if (!hasProject) {
+            return;
+        }
+
+        const timeoutId =
+            window.setTimeout(() => {
+                void load();
+            }, 0);
+
+        return () => {
+            window.clearTimeout(
+                timeoutId,
+            );
+        };
+    }, [hasProject, hours, load]);
+
+    if (!hasProject) {
+        return null;
+    }
 
     if (loading) {
         return (
@@ -219,21 +171,22 @@ export default function DashboardPage() {
             p-8
         "
         >
-            <div className="flex items-center justify-between mb-2">
-                <ProjectHeader
-                    projectName="Project 5"
-                    status={
-                        dashboard.health
-                            .healthScore >= 80
-                            ? "Healthy"
-                            : "Degraded"
-                    }
-                    subtitle="Monitoring last 72 hours"
-                />
-                <LiveIndicator connected={connected} />
-            </div>
+            <StickyPageHeader>
+                <div className="flex items-start justify-between gap-4">
+                    <ProjectHeader
+                        status={
+                            dashboard.health
+                                .healthScore >= 80
+                                ? "Healthy"
+                                : "Degraded"
+                        }
+                        subtitle="Monitoring last 72 hours"
+                    />
+                    <LiveIndicator connected={connected} />
+                </div>
+            </StickyPageHeader>
 
-            <ComparisonBar data={comparison} />
+            <ComparisonBar data={dashboard.comparison} />
 
             <div
                 className="
@@ -452,7 +405,7 @@ export default function DashboardPage() {
                     }
                 >
                     <LatencyTrendChart
-                        data={trend}
+                        data={dashboard.trend}
                     />
                 </ChartCard>
 
@@ -472,7 +425,7 @@ export default function DashboardPage() {
                     }
                 >
                     <TrafficChart
-                        data={traffic}
+                        data={dashboard.traffic}
                     />
                 </ChartCard>
             </div>
@@ -500,7 +453,7 @@ export default function DashboardPage() {
                 >
                     <LatencyDistributionChart
                         distribution={
-                            distribution
+                            dashboard.latencyDistribution
                         }
                     />
                 </ChartCard>
@@ -516,13 +469,13 @@ export default function DashboardPage() {
             >
                 <SlowEndpointsCard
                     endpoints={
-                        slowEndpoints
+                        dashboard.slowEndpoints
                     }
                 />
 
                 <RecentAlertsCard
                     events={
-                        recentAlerts
+                        dashboard.recentAlerts
                     }
                 />
             </div>

@@ -21,9 +21,11 @@ import {
 } from "@/lib/webhooks-api";
 import toast from "react-hot-toast";
 import { useRequireProject } from "@/lib/useRequireProject";
+import StickyPageHeader from "@/components/layout/StickyPageHeader";
 
 export default function WebhooksPage() {
-    useRequireProject();
+    const hasProject =
+        useRequireProject();
     const [
         webhooks,
         setWebhooks,
@@ -39,8 +41,25 @@ export default function WebhooksPage() {
     }
 
     useEffect(() => {
-        load();
-    }, []);
+        if (!hasProject) {
+            return;
+        }
+
+        const timeoutId =
+            window.setTimeout(() => {
+                void load();
+            }, 0);
+
+        return () => {
+            window.clearTimeout(
+                timeoutId,
+            );
+        };
+    }, [hasProject]);
+
+    if (!hasProject) {
+        return null;
+    }
 
     async function handleCreate(
         url: string,
@@ -90,13 +109,14 @@ export default function WebhooksPage() {
                 p-8
             "
         >
-            <ProjectHeader
-                projectName="Project 5"
-                status="Healthy"
-                subtitle="
-                    Configure webhook integrations
-                "
-            />
+            <StickyPageHeader>
+                <ProjectHeader
+                    status="Healthy"
+                    subtitle="
+                        Configure webhook integrations
+                    "
+                />
+            </StickyPageHeader>
 
             <WebhookForm
                 onCreate={

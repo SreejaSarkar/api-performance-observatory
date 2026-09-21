@@ -20,9 +20,10 @@ import AnomaliesPageSkeleton from "@/components/anomalies/AnomaliesPageSkeleton"
 import ErrorState from "@/components/common/ErrorState";
 import { useRequireProject } from "@/lib/useRequireProject";
 import { useRealtimeRefresh } from "@/lib/useRealtimeRefresh";
+import StickyPageHeader from "@/components/layout/StickyPageHeader";
 
 export default function AnomaliesPage() {
-  useRequireProject();
+  const hasProject = useRequireProject();
   const [
     anomalies,
     setAnomalies,
@@ -54,10 +55,11 @@ export default function AnomaliesPage() {
         setAnomalies(
           data,
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         setError(
-          err?.message ||
-          "Failed to load anomalies.",
+          err instanceof Error
+            ? err.message
+            : "Failed to load anomalies.",
         );
       } finally {
         setLoading(false);
@@ -67,8 +69,22 @@ export default function AnomaliesPage() {
   useRealtimeRefresh(load);
 
   useEffect(() => {
-    load();
-  }, []);
+    if (!hasProject) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [hasProject]);
+
+  if (!hasProject) {
+    return null;
+  }
 
   if (loading) {
     return (
@@ -104,15 +120,16 @@ export default function AnomaliesPage() {
         overflow-x-hidden
       "
     >
-      <ProjectHeader
-        projectName="Project 5"
-        status={
-          anomalies.length > 0
-            ? "Critical"
-            : "Healthy"
-        }
-        subtitle="Anomaly monitoring and incident response"
-      />
+      <StickyPageHeader>
+        <ProjectHeader
+          status={
+            anomalies.length > 0
+              ? "Critical"
+              : "Healthy"
+          }
+          subtitle="Anomaly monitoring and incident response"
+        />
+      </StickyPageHeader>
 
       <AnomalyTable
         anomalies={

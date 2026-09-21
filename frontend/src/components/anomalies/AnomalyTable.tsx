@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Link from "next/link";
+import { Eye, Info } from "lucide-react";
 import {
   Anomaly,
 } from "@/types/anomaly";
@@ -101,12 +102,31 @@ export default function AnomalyTable({
                 </td>
 
                 <td className="p-3 md:p-4 font-mono text-xs">
-                  <Link
-                    href={`/endpoints/${encodeURIComponent(anomaly.endpoint)}`}
-                    className="text-blue-400 hover:text-blue-300 underline"
-                  >
-                    {anomaly.endpoint}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/endpoints/${encodeURIComponent(anomaly.endpoint)}`}
+                      className="text-blue-400 hover:text-blue-300 underline"
+                    >
+                      {anomaly.endpoint}
+                    </Link>
+
+                    <Link
+                      href={`/endpoints/${encodeURIComponent(anomaly.endpoint)}`}
+                      className="inline-flex items-center justify-center rounded-md border border-slate-700 p-1 text-slate-300 transition hover:border-blue-400 hover:text-blue-300"
+                      title="View endpoint details"
+                      aria-label={`View details for ${anomaly.endpoint}`}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Link>
+
+                    <span
+                      className="inline-flex items-center text-slate-500 hover:text-slate-300"
+                      title="Opens a detail page with latency trends, errors, methods, environments, and recent request samples for this endpoint."
+                      aria-label="Endpoint details info"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
                 </td>
 
                 <td className="p-3 md:p-4">{anomaly.value}</td>

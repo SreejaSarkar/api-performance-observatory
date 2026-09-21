@@ -84,20 +84,3 @@ export async function downloadReport(
     );
   }
 }
-
-export async function getReportPreview(hours: number) {
-  const response = await fetch(
-    `${API_URL}/reports/export?hours=${hours}&format=json`,
-    {
-      headers: {
-        "x-api-key": getApiKey(),
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error("Failed to load report preview");
-  }
-
-  return response.json();
-}

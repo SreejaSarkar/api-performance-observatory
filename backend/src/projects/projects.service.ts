@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
+import { ProjectRole } from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -9,11 +10,23 @@ export class ProjectsService {
     private readonly prisma: PrismaService,
   ) { }
 
-  async create(name: string) {
+  async create(
+    name: string,
+    userId: string,
+  ) {
     return this.prisma.project.create({
       data: {
         name,
         apiKey: randomUUID(),
+        memberships: {
+          create: {
+            userId,
+            role: ProjectRole.OWNER,
+          },
+        },
+      },
+      include: {
+        memberships: true,
       },
     });
   }
@@ -26,10 +39,27 @@ export class ProjectsService {
     });
   }
 
-  async findAll() {
+  async findAllForUser(userId: string) {
     return this.prisma.project.findMany({
+      where: {
+        memberships: {
+          some: {
+            userId,
+          },
+        },
+      },
       orderBy: {
         createdAt: "desc",
+      },
+      include: {
+        memberships: {
+          where: {
+            userId,
+          },
+          select: {
+            role: true,
+          },
+        },
       },
     });
   }

@@ -1,15 +1,66 @@
 {
-  "name": "@api-observatory/sdk",
+  "name": "@sreejasarkar/api-observatory",
   "version": "1.0.0",
+  "description": "TypeScript SDK for API Performance Observatory",
+  "license": "MIT",
+  "author": "Sreeja Sarkar",
+  "homepage": "https://api-performance-observatory.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SreejaSarkar/api-performance-observatory.git",
+    "directory": "sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/SreejaSarkar/api-performance-observatory/issues"
+  },
+  "keywords": [
+    "observability",
+    "monitoring",
+    "telemetry",
+    "metrics",
+    "api",
+    "nestjs",
+    "typescript",
+    "sdk"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "axios": "^1.11.0"
   },
   "devDependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@types/express": "^5.0.0",
+    "express": "^5.1.0",
+    "rxjs": "^7.8.1",
     "typescript": "^5.9.2"
+  },
+  "peerDependencies": {
+    "express": "^4 || ^5",
+    "@nestjs/common": "^10 || ^11",
+    "@nestjs/core": "^10 || ^11",
+    "rxjs": "^7"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

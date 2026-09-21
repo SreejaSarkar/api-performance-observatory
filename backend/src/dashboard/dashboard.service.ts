@@ -20,7 +20,12 @@ export class DashboardService {
       alerts,
       anomalies,
       topFailures,
+      trend,
+      traffic,
       latencyDistribution,
+      slowEndpoints,
+      recentAlerts,
+      comparison,
     ] = await Promise.all([
       this.metricsService.getSummary(projectId, hours),
 
@@ -34,8 +39,18 @@ export class DashboardService {
 
       this.metricsService.getTopFailures(projectId, hours),
 
+      this.metricsService.getTrend(projectId, hours),
+
+      this.metricsService.getTraffic(projectId, hours),
+
       this.metricsService.getLatencyDistribution(projectId, hours),
-    ]);
+
+      this.metricsService.getSlowEndpoints(projectId, hours),
+
+      this.alertsService.getEvents(projectId),
+
+      this.metricsService.getComparison(projectId, hours),
+    ] as const);
 
     return {
       summary,
@@ -44,7 +59,12 @@ export class DashboardService {
       alerts,
       anomalies,
       topFailures,
+      trend,
+      traffic,
       latencyDistribution,
+      slowEndpoints,
+      recentAlerts: recentAlerts.slice(0, 5),
+      comparison,
       generatedAt: new Date(),
     };
   }

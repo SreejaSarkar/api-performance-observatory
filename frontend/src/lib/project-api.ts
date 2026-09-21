@@ -6,15 +6,35 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:3001";
 
+async function parseError(
+    response: Response,
+) {
+    const data =
+        await response
+            .json()
+            .catch(() => null);
+
+    return (
+        data?.message ||
+        "Request failed"
+    );
+}
+
 export async function getProjects(): Promise<Project[]> {
     const response =
         await fetch(
             `${API_URL}/projects`,
+            {
+                credentials:
+                    "include",
+            },
         );
 
     if (!response.ok) {
         throw new Error(
-            "Failed to fetch projects",
+            await parseError(
+                response,
+            ),
         );
     }
 
@@ -30,6 +50,9 @@ export async function createProject(
             {
                 method: "POST",
 
+                credentials:
+                    "include",
+
                 headers: {
                     "Content-Type":
                         "application/json",
@@ -43,7 +66,9 @@ export async function createProject(
 
     if (!response.ok) {
         throw new Error(
-            "Failed to create project",
+            await parseError(
+                response,
+            ),
         );
     }
 

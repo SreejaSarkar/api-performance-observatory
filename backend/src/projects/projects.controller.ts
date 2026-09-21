@@ -3,13 +3,22 @@ import {
   Controller,
   Get,
   Post,
+  UseGuards,
 } from "@nestjs/common";
 
 import { ProjectsService } from "./projects.service";
 import { CreateProjectDto } from "./dto/create-project.dto";
-import { ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiTags,
+} from "@nestjs/swagger";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
+import type { AuthUser } from "../auth/types/auth-user.type";
 
 @ApiTags("Projects")
+@ApiBearerAuth("bearer")
+@UseGuards(JwtAuthGuard)
 @Controller("projects")
 export class ProjectsController {
   constructor(
@@ -19,15 +28,20 @@ export class ProjectsController {
   @Post()
   async create(
     @Body() dto: CreateProjectDto,
+    @CurrentUser() user: AuthUser,
   ) {
-    console.log('dto:', dto);
     return this.projectsService.create(
       dto.name,
+      user.userId,
     );
   }
 
   @Get()
-  async findAll() {
-    return this.projectsService.findAll();
+  async findAll(
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.projectsService.findAllForUser(
+      user.userId,
+    );
   }
 }

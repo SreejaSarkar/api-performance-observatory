@@ -22,6 +22,7 @@ import { AnomaliesModule } from "./anomalies/anomalies.module";
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { WebhooksModule } from "./webhooks/webhooks.module";
+import { AuthModule } from "./auth/auth.module";
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { WebhooksModule } from "./webhooks/webhooks.module";
     RedisModule,
     HealthModule,
     MetricsModule,
+    AuthModule,
     AlertsModule,
     AnomaliesModule,
     DashboardModule,
