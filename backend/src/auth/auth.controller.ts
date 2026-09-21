@@ -15,6 +15,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import type {
+  CookieOptions,
   Request,
   Response,
 } from "express";
@@ -182,33 +183,38 @@ export class AuthController {
     accessToken: string,
     refreshToken: string,
   ) {
-    res.cookie("access_token", accessToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: false,
-      maxAge: 15 * 60 * 1000,
-    });
+    res.cookie(
+      "access_token",
+      accessToken,
+      this.getCookieOptions(15 * 60 * 1000),
+    );
 
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: false,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie(
+      "refresh_token",
+      refreshToken,
+      this.getCookieOptions(7 * 24 * 60 * 60 * 1000),
+    );
   }
 
   private clearAuthCookies(res: Response) {
-    res.clearCookie("access_token", {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: false,
-    });
+    res.clearCookie("access_token", this.getCookieOptions());
 
-    res.clearCookie("refresh_token", {
+    res.clearCookie("refresh_token", this.getCookieOptions());
+  }
+
+  private getCookieOptions(maxAge?: number): CookieOptions {
+    const frontendUrl = process.env.FRONTEND_URL;
+    const isSecureFrontend = frontendUrl?.startsWith("https://") ?? false;
+    const cookieDomain = process.env.COOKIE_DOMAIN;
+
+    return {
       httpOnly: true,
-      sameSite: "lax",
-      secure: false,
-    });
+      sameSite: isSecureFrontend ? "none" : "lax",
+      secure: isSecureFrontend,
+      path: "/",
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
+      ...(typeof maxAge === "number" ? { maxAge } : {}),
+    };
   }
 
   private getNextPath(state?: string) {

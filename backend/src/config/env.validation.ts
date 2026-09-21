@@ -15,6 +15,8 @@ export const validationSchema = Joi.object({
 
   BACKEND_URL: Joi.string().uri().default("http://localhost:3001"),
 
+  COOKIE_DOMAIN: Joi.string().optional(),
+
   GOOGLE_CLIENT_ID: Joi.string().allow("").optional(),
 
   GOOGLE_CLIENT_SECRET: Joi.string().allow("").optional(),

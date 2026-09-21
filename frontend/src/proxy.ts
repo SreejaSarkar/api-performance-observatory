@@ -26,37 +26,16 @@ export function proxy(
 ) {
     const {
         pathname,
-        search,
     } = request.nextUrl;
 
     if (!isProtectedPath(pathname)) {
         return NextResponse.next();
     }
 
-    const hasRefreshToken =
-        Boolean(
-            request.cookies.get(
-                "refresh_token",
-            )?.value,
-        );
-
-    if (hasRefreshToken) {
-        return NextResponse.next();
-    }
-
-    const loginUrl = new URL(
-        "/auth/login",
-        request.url,
-    );
-
-    loginUrl.searchParams.set(
-        "next",
-        `${pathname}${search}`,
-    );
-
-    return NextResponse.redirect(
-        loginUrl,
-    );
+    // In production the auth cookies belong to the backend origin,
+    // so the frontend proxy cannot reliably inspect them.
+    // Let the client validate the session through /auth/me.
+    return NextResponse.next();
 }
 
 export const config = {
