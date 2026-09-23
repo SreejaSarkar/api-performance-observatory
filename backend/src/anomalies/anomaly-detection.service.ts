@@ -20,10 +20,7 @@ export class AnomalyDetectionService {
       try {
         await this.detectAnomalies(project.id);
       } catch (error) {
-        this.logger.error(
-          `Detection failed for project ${project.id}`,
-          error,
-        );
+        this.logger.error(`Detection failed for project ${project.id}`, error);
       }
     }
   }
@@ -174,9 +171,7 @@ export class AnomalyDetectionService {
       }
     }
 
-    const baselineMap = new Map(
-      baselines.map((b) => [b.endpoint, b]),
-    );
+    const baselineMap = new Map(baselines.map((b) => [b.endpoint, b]));
 
     const newAnomalies: {
       type: string;
@@ -193,8 +188,7 @@ export class AnomalyDetectionService {
       if (!baseline) continue;
 
       const avgLatency =
-        recent.latencies.reduce((a, b) => a + b, 0) /
-        recent.latencies.length;
+        recent.latencies.reduce((a, b) => a + b, 0) / recent.latencies.length;
       const errorRate = (recent.errors / recent.total) * 100;
       const requestVolume = recent.requests;
 
@@ -212,10 +206,7 @@ export class AnomalyDetectionService {
           threshold: Math.round(latencyThreshold3),
           severity: 'CRITICAL',
         });
-      } else if (
-        baseline.stdDevLatency > 0 &&
-        avgLatency > latencyThreshold2
-      ) {
+      } else if (baseline.stdDevLatency > 0 && avgLatency > latencyThreshold2) {
         newAnomalies.push({
           type: 'LATENCY_SPIKE',
           endpoint,

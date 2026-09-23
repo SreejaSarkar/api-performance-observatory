@@ -1,11 +1,12 @@
 import {
+    Send,
     Trash2,
-} from "lucide-react";
+} from 'lucide-react';
 
 import {
     Webhook,
-} from "@/types/webhook";
-import EmptyState from "../common/EmptyState";
+} from '@/types/webhook';
+import EmptyState from '../common/EmptyState';
 
 interface Props {
     webhooks: Webhook[];
@@ -13,34 +14,43 @@ interface Props {
     onDelete: (
         id: string,
     ) => void;
+
+    onTest: (
+        id: string,
+    ) => void;
+}
+
+function getProviderLabel(provider: Webhook['provider']) {
+    if (provider === 'MICROSOFT_TEAMS') {
+        return 'Microsoft Teams';
+    }
+
+    return 'Generic webhook';
 }
 
 export default function WebhookTable({
     webhooks,
     onDelete,
+    onTest,
 }: Props) {
     if (!webhooks.length) {
     return (
-        <EmptyState
-            icon="🔗"
-            title="No Webhooks Configured"
-            description="
-                Add a webhook URL to send alerts
-                to Slack, Teams, Discord, or
-                other notification platforms.
-            "
-        />
+            <EmptyState
+                icon="🔗"
+                title="No destinations configured"
+                description="Add a Microsoft Teams or generic webhook destination so alert rules can notify your team automatically."
+            />
     );
-}
+    }
 
     return (
         <div
             className="
-                bg-slate-900
+                overflow-hidden
+                rounded-[28px]
                 border
                 border-slate-800
-                rounded-2xl
-                overflow-hidden
+                bg-slate-950/80
             "
         >
             <table
@@ -50,10 +60,19 @@ export default function WebhookTable({
             >
                 <thead
                     className="
-                        bg-slate-800
+                        bg-slate-900/90
                     "
                 >
                     <tr>
+                        <th
+                            className="
+                                p-4
+                                text-left
+                            "
+                        >
+                            Destination
+                        </th>
+
                         <th
                             className="
                                 p-4
@@ -75,6 +94,7 @@ export default function WebhookTable({
                         <th
                             className="
                                 p-4
+                                text-right
                             "
                         >
                             Actions
@@ -83,70 +103,146 @@ export default function WebhookTable({
                 </thead>
 
                 <tbody>
-                    {webhooks.map(
-                        (
-                            webhook,
-                        ) => (
-                            <tr
-                                key={
-                                    webhook.id
-                                }
+                    {webhooks.map((webhook) => (
+                        <tr
+                            key={webhook.id}
+                            className="
+                                border-t
+                                border-slate-900
+                            "
+                        >
+                            <td
                                 className="
-                                    border-t
-                                    border-slate-800
+                                    p-4
+                                    align-top
                                 "
                             >
-                                <td
+                                <div
                                     className="
-                                        p-4
+                                        flex
+                                        flex-col
+                                        gap-2
                                     "
                                 >
-                                    {
-                                        webhook.url
-                                    }
-                                </td>
+                                    <span
+                                        className="
+                                            font-medium
+                                            text-white
+                                        "
+                                    >
+                                        {webhook.name || getProviderLabel(webhook.provider)}
+                                    </span>
 
-                                <td
+                                    <span
+                                        className="
+                                            inline-flex
+                                            w-fit
+                                            rounded-full
+                                            bg-cyan-500/10
+                                            px-2.5
+                                            py-1
+                                            text-[11px]
+                                            uppercase
+                                            tracking-[0.2em]
+                                            text-cyan-200
+                                        "
+                                    >
+                                        {getProviderLabel(webhook.provider)}
+                                    </span>
+                                </div>
+                            </td>
+
+                            <td
+                                className="
+                                    p-4
+                                    align-top
+                                    text-sm
+                                    text-slate-300
+                                "
+                            >
+                                <span
                                     className="
-                                        p-4
+                                        break-all
                                     "
                                 >
-                                    {new Date(
-                                        webhook.createdAt,
-                                    ).toLocaleDateString()}
-                                </td>
+                                    {webhook.url}
+                                </span>
+                            </td>
 
-                                <td
+                            <td
+                                className="
+                                    p-4
+                                    align-top
+                                    text-sm
+                                    text-slate-400
+                                "
+                            >
+                                {new Date(webhook.createdAt).toLocaleString()}
+                            </td>
+
+                            <td
+                                className="
+                                    p-4
+                                    align-top
+                                "
+                            >
+                                <div
                                     className="
-                                        p-4
-                                        text-center
+                                        flex
+                                        justify-end
+                                        gap-2
                                     "
                                 >
                                     <button
-                                        onClick={() =>
-                                            onDelete(
-                                                webhook.id,
-                                            )
-                                        }
+                                        onClick={() => onTest(webhook.id)}
                                         className="
-                                            bg-red-600
-                                            hover:bg-red-500
+                                            inline-flex
+                                            items-center
+                                            gap-2
+                                            rounded-xl
+                                            border
+                                            border-cyan-500/30
+                                            bg-cyan-500/10
                                             px-3
                                             py-2
-                                            rounded-lg
+                                            text-sm
+                                            text-cyan-100
+                                            transition
+                                            hover:bg-cyan-500/20
+                                        "
+                                    >
+                                        <Send
+                                            className="
+                                                h-4
+                                                w-4
+                                            "
+                                        />
+                                        Test
+                                    </button>
+
+                                    <button
+                                        onClick={() => onDelete(webhook.id)}
+                                        className="
+                                            rounded-xl
+                                            bg-red-600
+                                            px-3
+                                            py-2
+                                            text-white
+                                            transition
+                                            hover:bg-red-500
                                         "
                                     >
                                         <Trash2
                                             className="
-                                                w-4
                                                 h-4
+                                                w-4
                                             "
                                         />
                                     </button>
-                                </td>
-                            </tr>
-                        ),
-                    )}
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
                 </tbody>
             </table>
         </div>

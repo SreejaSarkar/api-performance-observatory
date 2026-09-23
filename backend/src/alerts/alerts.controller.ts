@@ -88,7 +88,7 @@ export class AlertsController {
     @Body()
     dto: CreateWebhookDto,
   ) {
-    return this.alertsService.createWebhook(req.project.id, dto.url);
+    return this.alertsService.createWebhook(req.project.id, dto);
   }
 
   @Get('webhooks')

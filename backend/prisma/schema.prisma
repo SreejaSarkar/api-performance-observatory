@@ -146,6 +146,8 @@ model AlertEvent {
 model Webhook {
   id        String   @id @default(cuid())
   projectId String
+  name      String?
+  provider  String   @default("GENERIC")
   url       String
   createdAt DateTime @default(now())
   project   Project  @relation(fields: [projectId], references: [id])

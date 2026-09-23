@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
+import { useSelectedProject } from "./selected-project";
 import { useSocket } from "./useSocket";
 
 export function useRealtimeRefresh(loadFn: () => void) {
   const { socket, connected } = useSocket();
+  const selectedProject = useSelectedProject();
   const lastRefresh = useRef<number>(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const loadFnRef = useRef(loadFn);
-  loadFnRef.current = loadFn;
+
+  useEffect(() => {
+    loadFnRef.current = loadFn;
+  }, [loadFn]);
 
   const debouncedRefresh = useCallback(() => {
     const now = Date.now();
@@ -29,7 +34,7 @@ export function useRealtimeRefresh(loadFn: () => void) {
   useEffect(() => {
     if (!socket) return;
 
-    const projectId = localStorage.getItem("projectId");
+    const projectId = selectedProject?.id;
     if (!projectId) return;
 
     const event = `project:${projectId}`;
@@ -41,7 +46,7 @@ export function useRealtimeRefresh(loadFn: () => void) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [socket, debouncedRefresh]);
+  }, [socket, selectedProject?.id, debouncedRefresh]);
 
   return { connected };
 }

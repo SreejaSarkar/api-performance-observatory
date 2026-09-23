@@ -1,5 +1,6 @@
 "use client";
 
+import { getAlertMetricConfig } from "@/lib/alerts-format";
 import { buttonStyles } from "../ui/ButtonStyles";
 
 interface Props {
@@ -41,6 +42,8 @@ export default function CreateAlertRuleModal({
     onClose,
     isEditing
 }: Props) {
+    const metricConfig = getAlertMetricConfig(metric);
+
     return (
         <div
             className="
@@ -165,7 +168,7 @@ export default function CreateAlertRuleModal({
                                 text-slate-300
                             "
                         >
-                            Threshold
+                            {metricConfig.thresholdLabel}
                         </label>
 
                         <input
@@ -189,6 +192,10 @@ export default function CreateAlertRuleModal({
                                 py-2
                             "
                         />
+
+                        <p className="mt-2 text-sm text-slate-400">
+                            {metricConfig.description}
+                        </p>
                     </div>
 
                     {/* Severity */}

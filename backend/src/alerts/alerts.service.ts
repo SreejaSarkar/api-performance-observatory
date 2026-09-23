@@ -3,10 +3,48 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { CreateAlertRuleDto } from './dto/create-alert-rule.dto';
+import { CreateWebhookDto } from './dto/create-webhook.dto';
 import { MetricsService } from 'src/metrics/metrics.service';
 import { Cron } from '@nestjs/schedule';
-import axios from 'axios';
 import { AlertRule } from '@prisma/client';
+import {
+  deliverWebhookNotification,
+  type WebhookNotificationPayload,
+} from '../webhooks/webhook-delivery';
+import { DEFAULT_WEBHOOK_PROVIDER } from '../webhooks/webhook.constants';
+
+type AlertMetricContext = {
+  unit: string;
+  breachDirection: 'above' | 'below';
+  triggerSource: string | null;
+  triggerSourceLabel: string;
+  triggerSourceValue: number | null;
+};
+
+type AlertBreachEndpoint = {
+  endpoint: string;
+  value: number;
+  unit: string;
+};
+
+type MetricsSummary = {
+  avgLatency: number;
+};
+
+type MetricsErrors = {
+  errorRate: number;
+};
+
+type ServiceHealth = {
+  healthScore: number;
+};
+
+type EndpointAnalytics = {
+  endpoint: string;
+  avgLatency: number;
+  requests: number;
+  errorRate: number;
+};
 
 @Injectable()
 export class AlertsService {
@@ -50,14 +88,26 @@ export class AlertsService {
       throw new NotFoundException('Alert rule not found');
     }
 
-    await this.prisma.alertRule.delete({
-      where: {
-        id: ruleId,
-      },
+    const deletedEvents = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.alertEvent.deleteMany({
+        where: {
+          projectId,
+          ruleId,
+        },
+      });
+
+      await tx.alertRule.delete({
+        where: {
+          id: ruleId,
+        },
+      });
+
+      return count;
     });
 
     return {
       success: true,
+      deletedEvents,
     };
   }
 
@@ -86,11 +136,13 @@ export class AlertsService {
     });
   }
 
-  async createWebhook(projectId: string, url: string) {
+  async createWebhook(projectId: string, dto: CreateWebhookDto) {
     return this.prisma.webhook.create({
       data: {
         projectId,
-        url,
+        name: dto.name?.trim() || null,
+        provider: dto.provider ?? DEFAULT_WEBHOOK_PROVIDER,
+        url: dto.url,
       },
     });
   }
@@ -152,27 +204,30 @@ export class AlertsService {
 
     switch (rule.metric) {
       case 'LATENCY': {
-        const summary = await this.metricsService.getSummary(
+        const summary = (await this.metricsService.getSummary(
           rule.projectId,
           72,
-        );
+        )) as MetricsSummary;
 
         currentValue = summary.avgLatency;
         break;
       }
 
       case 'ERROR_RATE': {
-        const errors = await this.metricsService.getErrors(rule.projectId, 72);
+        const errors = (await this.metricsService.getErrors(
+          rule.projectId,
+          72,
+        )) as MetricsErrors;
 
         currentValue = errors.errorRate;
         break;
       }
 
       case 'HEALTH_SCORE': {
-        const health = await this.metricsService.getServiceHealth(
+        const health = (await this.metricsService.getServiceHealth(
           rule.projectId,
           72,
-        );
+        )) as ServiceHealth;
 
         currentValue = health.healthScore;
         break;
@@ -240,6 +295,7 @@ export class AlertsService {
         severity: rule.severity,
         value: currentValue,
         threshold: rule.threshold,
+        deliveryType: 'ALERT_TRIGGERED',
       });
 
       console.log(`Alert triggered: ${rule.name}`);
@@ -265,6 +321,7 @@ export class AlertsService {
       severity: rule.severity,
       value: currentValue,
       threshold: rule.threshold,
+      deliveryType: 'ALERT_REMINDER',
     });
 
     await this.prisma.alertEvent.update({
@@ -293,29 +350,149 @@ export class AlertsService {
       },
     });
 
-    return events.map((event) => ({
-      id: event.id,
+    const contextCache = new Map<string, Promise<AlertMetricContext>>();
+    const endpointAnalyticsPromise = this.metricsService.getEndpointAnalytics(
+      projectId,
+      72,
+    ) as Promise<EndpointAnalytics[]>;
 
-      rule: event.rule.name,
+    const getContext = (metric: string) => {
+      const cacheKey = `${projectId}:${metric}`;
 
-      metric: event.rule.metric,
+      if (!contextCache.has(cacheKey)) {
+        contextCache.set(cacheKey, this.buildMetricContext(projectId, metric));
+      }
 
-      severity: event.rule.severity,
+      return contextCache.get(cacheKey)!;
+    };
 
-      value: event.value,
+    return Promise.all(
+      events.map(async (event) => {
+        const context = await getContext(event.rule.metric);
+        const breachEndpoints = await this.getBreachEndpoints(
+          event.rule.metric,
+          event.rule.threshold,
+          context.unit,
+          endpointAnalyticsPromise,
+        );
 
-      threshold: event.rule.threshold,
+        return {
+          id: event.id,
+          rule: event.rule.name,
+          metric: event.rule.metric,
+          severity: event.rule.severity,
+          value: event.value,
+          threshold: event.rule.threshold,
+          unit: context.unit,
+          breachDirection: context.breachDirection,
+          triggerSource: context.triggerSource,
+          triggerSourceLabel: context.triggerSourceLabel,
+          triggerSourceValue: context.triggerSourceValue,
+          breachEndpoints,
+          acknowledged: event.acknowledged,
+          acknowledgedAt: event.acknowledgedAt,
+          resolved: event.resolved,
+          resolvedAt: event.resolvedAt,
+          triggeredAt: event.triggeredAt,
+        };
+      }),
+    );
+  }
 
-      acknowledged: event.acknowledged,
+  private async getBreachEndpoints(
+    metric: string,
+    threshold: number,
+    unit: string,
+    endpointAnalyticsPromise: Promise<EndpointAnalytics[]>,
+  ): Promise<AlertBreachEndpoint[]> {
+    if (metric !== 'LATENCY' && metric !== 'ERROR_RATE') {
+      return [];
+    }
 
-      acknowledgedAt: event.acknowledgedAt,
+    const endpoints = await endpointAnalyticsPromise;
 
-      resolved: event.resolved,
+    if (metric === 'LATENCY') {
+      return endpoints
+        .filter((endpoint) => endpoint.avgLatency > threshold)
+        .sort((left, right) => right.avgLatency - left.avgLatency)
+        .map((endpoint) => ({
+          endpoint: endpoint.endpoint,
+          value: endpoint.avgLatency,
+          unit,
+        }));
+    }
 
-      resolvedAt: event.resolvedAt,
+    return endpoints
+      .filter((endpoint) => endpoint.errorRate > threshold)
+      .sort((left, right) => right.errorRate - left.errorRate)
+      .map((endpoint) => ({
+        endpoint: endpoint.endpoint,
+        value: endpoint.errorRate,
+        unit,
+      }));
+  }
 
-      triggeredAt: event.triggeredAt,
-    }));
+  private async buildMetricContext(
+    projectId: string,
+    metric: string,
+  ): Promise<AlertMetricContext> {
+    switch (metric) {
+      case 'LATENCY': {
+        const endpoints = (await this.metricsService.getEndpointAnalytics(
+          projectId,
+          72,
+        )) as EndpointAnalytics[];
+        const slowestEndpoint = endpoints[0];
+
+        return {
+          unit: 'ms',
+          breachDirection: 'above',
+          triggerSource: slowestEndpoint?.endpoint ?? null,
+          triggerSourceLabel: slowestEndpoint
+            ? 'Slowest endpoint in the current window'
+            : 'Project-wide average latency',
+          triggerSourceValue: slowestEndpoint?.avgLatency ?? null,
+        };
+      }
+
+      case 'ERROR_RATE': {
+        const endpoints = (await this.metricsService.getEndpointAnalytics(
+          projectId,
+          72,
+        )) as EndpointAnalytics[];
+        const noisiestEndpoint = [...endpoints].sort(
+          (left, right) => right.errorRate - left.errorRate,
+        )[0];
+
+        return {
+          unit: '%',
+          breachDirection: 'above',
+          triggerSource: noisiestEndpoint?.endpoint ?? null,
+          triggerSourceLabel: noisiestEndpoint
+            ? 'Highest error-rate endpoint in the current window'
+            : 'Project-wide error rate',
+          triggerSourceValue: noisiestEndpoint?.errorRate ?? null,
+        };
+      }
+
+      case 'HEALTH_SCORE':
+        return {
+          unit: '/100',
+          breachDirection: 'below',
+          triggerSource: null,
+          triggerSourceLabel: 'Project-wide health score across all endpoints',
+          triggerSourceValue: null,
+        };
+
+      default:
+        return {
+          unit: '',
+          breachDirection: 'above',
+          triggerSource: null,
+          triggerSourceLabel: 'Project-wide alert metric',
+          triggerSourceValue: null,
+        };
+    }
   }
 
   private async sendWebhooks(
@@ -325,6 +502,7 @@ export class AlertsService {
       value: number;
       threshold: number;
       severity: string;
+      deliveryType: 'ALERT_TRIGGERED' | 'ALERT_REMINDER';
     },
   ) {
     const webhooks = await this.prisma.webhook.findMany({
@@ -334,25 +512,19 @@ export class AlertsService {
     });
 
     await Promise.allSettled(
-      webhooks.map((webhook) =>
-        axios.post(
-          webhook.url,
-          {
-            projectId,
+      webhooks.map((webhook) => {
+        const notification: WebhookNotificationPayload = {
+          projectId,
+          rule: payload.rule,
+          value: payload.value,
+          threshold: payload.threshold,
+          severity: payload.severity,
+          timestamp: new Date(),
+          deliveryType: payload.deliveryType,
+        };
 
-            rule: payload.rule,
-
-            value: payload.value,
-
-            threshold: payload.threshold,
-
-            timestamp: new Date(),
-          },
-          {
-            timeout: 5000,
-          },
-        ),
-      ),
+        return deliverWebhookNotification(webhook, notification);
+      }),
     );
   }
 

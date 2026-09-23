@@ -1,17 +1,21 @@
 import {
   AlertRule,
 } from "@/types/alerts";
+import {
+  formatAlertMetricValue,
+  getAlertMetricConfig,
+} from "@/lib/alerts-format";
 import { Pencil, Trash2 } from "lucide-react";
 
 interface Props {
   rules: AlertRule[];
-  onDelete: (id: string) => void;
+  onRequestDelete: (rule: AlertRule) => void;
   onEdit: (rule: AlertRule) => void;
 }
 
 export default function AlertRuleTable({
   rules,
-  onDelete,
+  onRequestDelete,
   onEdit
 }: Props) {
 
@@ -165,11 +169,17 @@ shadow-xl
                   </td>
 
                   <td className="p-4 text-slate-200">
-                    {rule.metric}
+                    <div>{getAlertMetricConfig(rule.metric).label}</div>
+                    <div className="text-xs text-slate-400">
+                      Unit: {getAlertMetricConfig(rule.metric).unit || "n/a"}
+                    </div>
                   </td>
 
                   <td className="p-4 text-slate-200">
-                    {rule.threshold}
+                    {formatAlertMetricValue(
+                      rule.threshold,
+                      getAlertMetricConfig(rule.metric).unit,
+                    )}
                   </td>
 
                   <td className="p-4 text-slate-200">
@@ -193,11 +203,7 @@ shadow-xl
                       </button>
 
                       <button
-                        onClick={() => {
-                          if (window.confirm("Delete this alert rule?")) {
-                            onDelete(rule.id);
-                          }
-                        }}
+                        onClick={() => onRequestDelete(rule)}
                         className="
       p-2
       rounded-full

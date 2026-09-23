@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Webhook"
+ADD COLUMN "name" TEXT,
+ADD COLUMN "provider" TEXT NOT NULL DEFAULT 'GENERIC';

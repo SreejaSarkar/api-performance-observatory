@@ -1,9 +1,11 @@
 import {
   AlertEvent,
 } from "@/types/alerts";
+import { formatAlertMetricValue, getAlertMetricConfig } from "@/lib/alerts-format";
 import SeverityBadge from "../common/SeverityBadge";
 import { buttonStyles } from "../ui/ButtonStyles";
 import EmptyState from "../common/EmptyState";
+import { ListCollapse } from "lucide-react";
 
 interface Props {
   events: AlertEvent[];
@@ -15,12 +17,17 @@ interface Props {
   onResolve: (
     id: string,
   ) => void;
+
+  onShowEndpoints: (
+    event: AlertEvent,
+  ) => void;
 }
 
 export default function AlertEventTable({
   events,
   onAck,
   onResolve,
+  onShowEndpoints,
 }: Props) {
 
   if (!events.length) {
@@ -117,6 +124,10 @@ shadow-xl
               </th>
 
               <th className="p-4 text-left">
+                Endpoints
+              </th>
+
+              <th className="p-4 text-left">
                 Severity
               </th>
 
@@ -147,11 +158,34 @@ shadow-xl
                   </td>
 
                   <td className="p-4">
-                    {event.value}
+                    {formatAlertMetricValue(event.value, event.unit)}
                   </td>
 
                   <td className="p-4">
-                    {event.threshold}
+                    {formatAlertMetricValue(event.threshold, event.unit)}
+                    <div className="mt-1 text-xs text-slate-400">
+                      {event.breachDirection === "below" ? "Triggers below threshold" : "Triggers above threshold"}
+                    </div>
+                  </td>
+
+                  <td className="p-4">
+                    <button
+                      onClick={() => onShowEndpoints(event)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800"
+                      title="Show breached endpoints"
+                    >
+                      <ListCollapse size={16} />
+                      <span>
+                        {event.breachEndpoints.length
+                          ? `${event.breachEndpoints.length} endpoints`
+                          : "View list"}
+                      </span>
+                    </button>
+                    <div className="mt-2 text-xs text-slate-400">
+                      {event.metric === "HEALTH_SCORE"
+                        ? "Health score is project-wide, so there is no endpoint list."
+                        : `Shows endpoints whose ${getAlertMetricConfig(event.metric).label.toLowerCase()} is above threshold.`}
+                    </div>
                   </td>
 
                   <td>
@@ -192,6 +226,19 @@ shadow-xl
                             ACK
                           </button>
                         )}
+
+                      {!event.resolved && (
+                        <button
+                          onClick={() =>
+                            onResolve(
+                              event.id,
+                            )
+                          }
+                          className={buttonStyles.primary}
+                        >
+                          Resolve
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

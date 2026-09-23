@@ -44,6 +44,8 @@ import { toast } from "react-hot-toast";
 import CreateAlertRuleModal from "@/components/alerts/CreateAlertRuleModal";
 import { useRequireProject } from "@/lib/useRequireProject";
 import StickyPageHeader from "@/components/layout/StickyPageHeader";
+import ConfirmDialog from "@/components/common/ConfirmDialog";
+import AlertEndpointsDialog from "@/components/alerts/AlertEndpointsDialog";
 
 export default function AlertsPage() {
   const hasProject = useRequireProject();
@@ -88,6 +90,12 @@ export default function AlertsPage() {
 
   const [editingRule, setEditingRule] =
     useState<AlertRule | null>(null);
+
+  const [rulePendingDelete, setRulePendingDelete] =
+    useState<AlertRule | null>(null);
+
+  const [eventForEndpoints, setEventForEndpoints] =
+    useState<AlertEvent | null>(null);
 
   const [showCreateModal, setShowCreateModal] =
     useState(false);
@@ -215,11 +223,20 @@ export default function AlertsPage() {
   };
 
   const handleDeleteRule = async (id: string) => {
-    await deleteRule(id);
+    try {
+      const result = await deleteRule(id);
 
-    setRules((prev) =>
-      prev.filter((rule) => rule.id !== id)
-    );
+      toast.success(
+        result.deletedEvents > 0
+          ? `Alert rule deleted with ${result.deletedEvents} related event${result.deletedEvents === 1 ? "" : "s"}`
+          : "Alert rule deleted",
+      );
+
+      setRulePendingDelete(null);
+      await loadData();
+    } catch {
+      toast.error("Failed to delete alert rule");
+    }
   };
 
   const handleAck =
@@ -420,7 +437,7 @@ export default function AlertsPage() {
           </div>
           <AlertRuleTable
             rules={rules}
-            onDelete={handleDeleteRule}
+            onRequestDelete={setRulePendingDelete}
             onEdit={handleEditRule}
           />
         </div>
@@ -433,6 +450,9 @@ export default function AlertsPage() {
           }
           onResolve={
             handleResolve
+          }
+          onShowEndpoints={
+            setEventForEndpoints
           }
         />
       </div>
@@ -454,6 +474,29 @@ export default function AlertsPage() {
           isEditing={!!editingRule}
         />
       )}
+
+      <ConfirmDialog
+        open={!!rulePendingDelete}
+        title="Delete alert rule?"
+        message={
+          rulePendingDelete
+            ? `Delete \"${rulePendingDelete.name}\" and remove all events that were triggered by this rule?`
+            : ""
+        }
+        confirmLabel="Delete rule"
+        confirmTone="danger"
+        onCancel={() => setRulePendingDelete(null)}
+        onConfirm={() => {
+          if (rulePendingDelete) {
+            void handleDeleteRule(rulePendingDelete.id);
+          }
+        }}
+      />
+
+      <AlertEndpointsDialog
+        event={eventForEndpoints}
+        onClose={() => setEventForEndpoints(null)}
+      />
     </>
   );
 }

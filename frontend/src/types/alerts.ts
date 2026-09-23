@@ -15,11 +15,29 @@ export interface AlertEvent {
 
   rule: string;
 
+  metric: string;
+
   severity: string;
 
   value: number;
 
   threshold: number;
+
+  unit: string;
+
+  breachDirection: "above" | "below";
+
+  triggerSource: string | null;
+
+  triggerSourceLabel: string;
+
+  triggerSourceValue: number | null;
+
+  breachEndpoints: Array<{
+    endpoint: string;
+    value: number;
+    unit: string;
+  }>;
 
   acknowledged: boolean;
 

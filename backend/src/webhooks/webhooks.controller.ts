@@ -7,38 +7,32 @@ import {
     Post,
     Req,
     UseGuards,
-} from "@nestjs/common";
+} from '@nestjs/common';
 
 import {
     ApiSecurity,
     ApiTags,
-} from "@nestjs/swagger";
+} from '@nestjs/swagger';
 
 import { ApiKeyGuard }
-    from "../guards/api-key.guard";
+    from '../guards/api-key.guard';
 
 import { WebhooksService }
-    from "./webhooks.service";
+    from './webhooks.service';
 
 import { CreateWebhookDto }
-    from "./dto/create-webhook.dto";
+    from './dto/create-webhook.dto';
 
-@ApiTags("Webhooks")
+@ApiTags('Webhooks')
 @ApiSecurity("api-key")
-@Controller("webhooks")
+@Controller('webhooks')
 @UseGuards(ApiKeyGuard)
 export class WebhooksController {
-    constructor(
-        private readonly webhooksService: WebhooksService,
-    ) {}
+    constructor(private readonly webhooksService: WebhooksService) {}
 
     @Get()
-    findAll(
-        @Req() req: any,
-    ) {
-        return this.webhooksService.findAll(
-            req.project.id,
-        );
+    findAll(@Req() req: any) {
+        return this.webhooksService.findAll(req.project.id);
     }
 
     @Post()
@@ -48,19 +42,16 @@ export class WebhooksController {
         @Body()
         dto: CreateWebhookDto,
     ) {
-        return this.webhooksService.create(
-            req.project.id,
-            dto.url,
-        );
+        return this.webhooksService.create(req.project.id, dto);
     }
 
-    @Delete(":id")
-    remove(
-        @Param("id")
-        id: string,
-    ) {
-        return this.webhooksService.remove(
-            id,
-        );
+    @Post(':id/test')
+    sendTest(@Req() req: any, @Param('id') id: string) {
+        return this.webhooksService.sendTest(req.project.id, id);
+    }
+
+    @Delete(':id')
+    remove(@Req() req: any, @Param('id') id: string) {
+        return this.webhooksService.remove(req.project.id, id);
     }
 }
