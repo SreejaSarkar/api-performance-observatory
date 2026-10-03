@@ -8,8 +8,177 @@ import { CreateMetricDto } from './dto/create-metric.dto';
 import { AnomalyDto } from './dto/anomaly.dto';
 import { MetricsGateway } from './metrics.gateway';
 
+type MetricsSummary = {
+  avgLatency: number;
+  p95Latency: number;
+  p99Latency: number;
+  requests: number;
+  errorRate: number;
+  periodHours: number;
+};
+
+type TrendPoint = {
+  time: string;
+  latency: number;
+};
+
+type EndpointAnalytics = {
+  endpoint: string;
+  avgLatency: number;
+  requests: number;
+  errorRate: number;
+};
+
+type ErrorMetrics = {
+  success: number;
+  '4xx': number;
+  '5xx': number;
+  errorRate: number;
+  periodHours: number;
+};
+
+type TrafficPoint = {
+  time: string;
+  requests: number;
+};
+
+type SlowEndpoint = {
+  endpoint: string;
+  avgLatency: number;
+  requests: number;
+};
+
+type ServiceHealth = {
+  healthScore: number;
+  status: string;
+  latencyScore: number;
+  errorScore: number;
+  trafficScore: number;
+  periodHours: number;
+};
+
+type SlaMetrics = {
+  availability: number;
+  target: number;
+  breached: boolean;
+  successfulRequests: number;
+  failedRequests: number;
+  periodHours: number;
+};
+
+type CostEstimation = {
+  estimatedMonthlyRequests: number;
+  estimatedInfraCost: number;
+  estimatedCacheSavings: number;
+  projectedCost: number;
+  periodHours: number;
+};
+
+type TopFailure = {
+  endpoint: string;
+  errors: number;
+};
+
+type LatencyDistribution = {
+  '0-100': number;
+  '100-250': number;
+  '250-500': number;
+  '500+': number;
+};
+
+type ComparisonStats = {
+  avgLatency: number;
+  p95Latency: number;
+  errorRate: number;
+  totalRequests: number;
+  availability: number;
+};
+
+type ComparisonResult = {
+  current: ComparisonStats;
+  previous: ComparisonStats;
+  changes: ComparisonStats;
+  periodHours: number;
+};
+
+type EndpointLatencyTrend = {
+  time: string;
+  avg: number;
+  p95: number;
+  p99: number;
+  requests: number;
+  errorRate: number;
+};
+
+type EndpointErrorBreakdown = {
+  statusCode: number;
+  count: number;
+};
+
+type EndpointMethodBreakdown = {
+  method: string;
+  requests: number;
+};
+
+type EndpointEnvironmentBreakdown = {
+  environment: string;
+  requests: number;
+};
+
+type EndpointRecentSample = {
+  method: string;
+  statusCode: number;
+  latency: number;
+  requests: number;
+  responseSize: number | null;
+  requestId: string | null;
+  userAgent: string | null;
+  environment: string | null;
+  timestamp: Date | string;
+};
+
+type EndpointStats = {
+  avgLatency: number;
+  p95Latency: number;
+  p99Latency: number;
+  peakLatency: number;
+  totalRequests: number;
+  errorRate: number;
+  avgResponseSize: number | null;
+  dataPoints: number;
+};
+
+type EndpointDetail = {
+  endpoint: string;
+  latencyTrend: EndpointLatencyTrend[];
+  errorBreakdown: EndpointErrorBreakdown[];
+  methodBreakdown: EndpointMethodBreakdown[];
+  environmentBreakdown: EndpointEnvironmentBreakdown[];
+  recentSamples: EndpointRecentSample[];
+  stats: EndpointStats | null;
+};
+
 @Injectable()
 export class MetricsService {
+  private static readonly CACHE_TTL_SECONDS = 60;
+
+  private static readonly CACHE_KEY_PREFIXES = [
+    'metrics-summary',
+    'metrics-trend',
+    'metrics-endpoints',
+    'metrics-errors',
+    'metrics-traffic',
+    'metrics-slow-endpoints',
+    'metrics-anomalies',
+    'metrics-service-health',
+    'metrics-sla',
+    'metrics-cost-estimation',
+    'metrics-top-failures',
+    'metrics-latency-distribution',
+    'metrics-comparison',
+    'metrics-endpoint-detail',
+  ] as const;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
@@ -49,7 +218,7 @@ export class MetricsService {
       data: this.toApiMetricCreateInput(dto, projectId),
     });
 
-    await this.invalidateCache();
+    await this.invalidateCache(projectId);
     this.metricsGateway.emitMetric(projectId, metric);
 
     return metric;
@@ -57,10 +226,12 @@ export class MetricsService {
 
   async createMany(metrics: CreateMetricDto[], projectId: string) {
     await this.prisma.apiMetric.createMany({
-      data: metrics.map((metric) => this.toApiMetricCreateInput(metric, projectId)),
+      data: metrics.map((metric) =>
+        this.toApiMetricCreateInput(metric, projectId),
+      ),
     });
 
-    await this.invalidateCache();
+    await this.invalidateCache(projectId);
     this.metricsGateway.emitMetric(projectId, {
       batch: true,
       count: metrics.length,
@@ -69,28 +240,31 @@ export class MetricsService {
     return { inserted: metrics.length };
   }
 
-  private async invalidateCache() {
-    await Promise.all([
-      this.redisService.delByPrefix('metrics-summary'),
-      this.redisService.delByPrefix('metrics-trend'),
-      this.redisService.delByPrefix('metrics-endpoints'),
-      this.redisService.delByPrefix('metrics-errors'),
-      this.redisService.delByPrefix('metrics-traffic'),
-      this.redisService.delByPrefix('metrics-slow-endpoints'),
-      this.redisService.delByPrefix('metrics-anomalies'),
-      this.redisService.delByPrefix('metrics-service-health'),
-      this.redisService.delByPrefix('metrics-sla'),
-      this.redisService.delByPrefix('metrics-cost-estimation'),
-    ]);
+  private getProjectCachePrefixes(projectId: string) {
+    return MetricsService.CACHE_KEY_PREFIXES.map(
+      (prefix) => `${prefix}:${projectId}:`,
+    );
   }
 
-  async getSummary(projectId: string, hours = 72) {
+  private async invalidateCache(projectId: string) {
+    await Promise.all(
+      this.getProjectCachePrefixes(projectId).map((prefix) =>
+        this.redisService.delByPrefix(prefix),
+      ),
+    );
+  }
+
+  private parseCachedValue<T>(cached: string): T {
+    return JSON.parse(cached) as T;
+  }
+
+  async getSummary(projectId: string, hours = 72): Promise<MetricsSummary> {
     const cacheKey = `metrics-summary:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<MetricsSummary>(cached);
     }
 
     const startDate = this.getStartDate(hours);
@@ -133,7 +307,7 @@ export class MetricsService {
     const total = stats._count.id;
 
     if (!total) {
-      return {
+      const emptySummary = {
         avgLatency: 0,
         p95Latency: 0,
         p99Latency: 0,
@@ -141,6 +315,14 @@ export class MetricsService {
         errorRate: 0,
         periodHours: hours,
       };
+
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(emptySummary),
+        MetricsService.CACHE_TTL_SECONDS,
+      );
+
+      return emptySummary;
     }
 
     // Fetch only the P95 and P99 rows using offset (avoids loading all rows)
@@ -179,18 +361,22 @@ export class MetricsService {
       periodHours: hours,
     };
 
-    await this.redisService.set(cacheKey, JSON.stringify(summary), 60);
+    await this.redisService.set(
+      cacheKey,
+      JSON.stringify(summary),
+      MetricsService.CACHE_TTL_SECONDS,
+    );
 
     return summary;
   }
 
-  async getTrend(projectId: string, hours = 72) {
+  async getTrend(projectId: string, hours = 72): Promise<TrendPoint[]> {
     const cacheKey = `metrics-trend:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<TrendPoint[]>(cached);
     }
 
     const metrics = await this.prisma.apiMetric.findMany({
@@ -222,13 +408,16 @@ export class MetricsService {
     return trend;
   }
 
-  async getEndpointAnalytics(projectId: string, hours = 72) {
+  async getEndpointAnalytics(
+    projectId: string,
+    hours = 72,
+  ): Promise<EndpointAnalytics[]> {
     const cacheKey = `metrics-endpoints:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<EndpointAnalytics[]>(cached);
     }
 
     const startDate = this.getStartDate(hours);
@@ -283,9 +472,7 @@ export class MetricsService {
 
         requests: endpoint._sum.requests ?? 0,
 
-        errorRate: Number(
-          ((errorCount / endpoint._count.id) * 100).toFixed(2),
-        ),
+        errorRate: Number(((errorCount / endpoint._count.id) * 100).toFixed(2)),
       };
     });
 
@@ -296,13 +483,13 @@ export class MetricsService {
     return result;
   }
 
-  async getErrors(projectId: string, hours = 72) {
+  async getErrors(projectId: string, hours = 72): Promise<ErrorMetrics> {
     const cacheKey = `metrics-errors:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<ErrorMetrics>(cached);
     }
 
     const startDate = this.getStartDate(hours);
@@ -366,13 +553,13 @@ export class MetricsService {
     return result;
   }
 
-  async getTraffic(projectId: string, hours = 72) {
+  async getTraffic(projectId: string, hours = 72): Promise<TrafficPoint[]> {
     const cacheKey = `metrics-traffic:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<TrafficPoint[]>(cached);
     }
 
     const metrics = await this.prisma.apiMetric.findMany({
@@ -415,13 +602,16 @@ export class MetricsService {
     return traffic;
   }
 
-  async getSlowEndpoints(projectId: string, hours = 72) {
+  async getSlowEndpoints(
+    projectId: string,
+    hours = 72,
+  ): Promise<SlowEndpoint[]> {
     const cacheKey = `metrics-slow-endpoints:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<SlowEndpoint[]>(cached);
     }
 
     const grouped = await this.prisma.apiMetric.groupBy({
@@ -456,13 +646,13 @@ export class MetricsService {
     return topSlow;
   }
 
-  async getAnomalies(projectId: string, hours = 72) {
+  async getAnomalies(projectId: string, hours = 72): Promise<AnomalyDto[]> {
     const cacheKey = `metrics-anomalies:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<AnomalyDto[]>(cached);
     }
 
     const metrics = await this.prisma.apiMetric.findMany({
@@ -481,7 +671,15 @@ export class MetricsService {
     });
 
     if (!metrics.length) {
-      return [];
+      const emptyAnomalies: AnomalyDto[] = [];
+
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(emptyAnomalies),
+        MetricsService.CACHE_TTL_SECONDS,
+      );
+
+      return emptyAnomalies;
     }
 
     const anomalies: AnomalyDto[] = [];
@@ -570,18 +768,25 @@ export class MetricsService {
      * Return anomalies (detection is now handled by AnomalyDetectionService cron)
      */
 
-    await this.redisService.set(cacheKey, JSON.stringify(anomalies), 60);
+    await this.redisService.set(
+      cacheKey,
+      JSON.stringify(anomalies),
+      MetricsService.CACHE_TTL_SECONDS,
+    );
 
     return anomalies;
   }
 
-  async getServiceHealth(projectId: string, hours = 72) {
+  async getServiceHealth(
+    projectId: string,
+    hours = 72,
+  ): Promise<ServiceHealth> {
     const cacheKey = `metrics-service-health:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<ServiceHealth>(cached);
     }
 
     const startDate = this.getStartDate(hours);
@@ -689,13 +894,13 @@ export class MetricsService {
     return result;
   }
 
-  async getSla(projectId: string, hours = 72) {
+  async getSla(projectId: string, hours = 72): Promise<SlaMetrics> {
     const cacheKey = `metrics-sla:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<SlaMetrics>(cached);
     }
 
     const startDate = this.getStartDate(hours);
@@ -759,13 +964,16 @@ export class MetricsService {
     return result;
   }
 
-  async getCostEstimation(projectId: string, hours = 72) {
+  async getCostEstimation(
+    projectId: string,
+    hours = 72,
+  ): Promise<CostEstimation> {
     const cacheKey = `metrics-cost-estimation:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<CostEstimation>(cached);
     }
 
     const stats = await this.prisma.apiMetric.aggregate({
@@ -824,13 +1032,13 @@ export class MetricsService {
     return result;
   }
 
-  async getTopFailures(projectId: string, hours = 72) {
+  async getTopFailures(projectId: string, hours = 72): Promise<TopFailure[]> {
     const cacheKey = `metrics-top-failures:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<TopFailure[]>(cached);
     }
 
     const result = await this.prisma.apiMetric.groupBy({
@@ -872,13 +1080,16 @@ export class MetricsService {
     return response;
   }
 
-  async getLatencyDistribution(projectId: string, hours = 72) {
+  async getLatencyDistribution(
+    projectId: string,
+    hours = 72,
+  ): Promise<LatencyDistribution> {
     const cacheKey = `metrics-latency-distribution:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<LatencyDistribution>(cached);
     }
 
     const metrics = await this.prisma.apiMetric.findMany({
@@ -935,13 +1146,16 @@ export class MetricsService {
     return Math.sqrt(variance);
   }
 
-  async getComparison(projectId: string, hours = 24) {
+  async getComparison(
+    projectId: string,
+    hours = 24,
+  ): Promise<ComparisonResult> {
     const cacheKey = `metrics-comparison:${projectId}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<ComparisonResult>(cached);
     }
 
     const now = Date.now();
@@ -1020,13 +1234,17 @@ export class MetricsService {
     return comparison;
   }
 
-  async getEndpointDetail(projectId: string, endpoint: string, hours = 72) {
+  async getEndpointDetail(
+    projectId: string,
+    endpoint: string,
+    hours = 72,
+  ): Promise<EndpointDetail> {
     const cacheKey = `metrics-endpoint-detail:${projectId}:${endpoint}:${hours}`;
 
     const cached = await this.redisService.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return this.parseCachedValue<EndpointDetail>(cached);
     }
 
     const startDate = this.getStartDate(hours);

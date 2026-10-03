@@ -25,15 +25,45 @@ export class RedisService {
   async delByPrefix(prefix: string) {
     const stream = this.redis.scanStream({ match: `${prefix}*`, count: 100 });
     const pipeline = this.redis.pipeline();
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+
+      const finish = async () => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+
+        try {
+          await pipeline.exec();
+          resolve();
+        } catch (error) {
+          reject(
+            error instanceof Error
+              ? error
+              : new Error('Failed to delete redis keys by prefix'),
+          );
+        }
+      };
+
       stream.on('data', (keys: string[]) => {
         for (const key of keys) {
           pipeline.del(key);
         }
       });
-      stream.on('end', async () => {
-        await pipeline.exec();
-        resolve();
+
+      stream.on('end', () => {
+        void finish();
+      });
+
+      stream.on('error', (error: Error) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        reject(error);
       });
     });
   }

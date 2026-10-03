@@ -22,12 +22,22 @@ export class MetricsController {
 
   @Get('summary')
   async getSummary(@Req() req: ProjectRequest, @Query() query: QueryWindowDto) {
-    return this.metricsService.getSummary(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getSummary(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('trend')
   async getTrend(@Req() req: ProjectRequest, @Query() query: QueryWindowDto) {
-    return this.metricsService.getTrend(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getTrend(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('endpoints')
@@ -35,20 +45,32 @@ export class MetricsController {
     @Req() req: ProjectRequest,
     @Query() query: QueryWindowDto,
   ) {
-    return this.metricsService.getEndpointAnalytics(
+    const result: unknown = await this.metricsService.getEndpointAnalytics(
       req.project.id,
       query.hours,
     );
+
+    return result;
   }
 
   @Get('errors')
   async getErrors(@Req() req: ProjectRequest, @Query() query: QueryWindowDto) {
-    return this.metricsService.getErrors(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getErrors(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('traffic')
   async getTraffic(@Req() req: ProjectRequest, @Query() query: QueryWindowDto) {
-    return this.metricsService.getTraffic(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getTraffic(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('slow-endpoints')
@@ -56,7 +78,12 @@ export class MetricsController {
     @Req() req: ProjectRequest,
     @Query() query: QueryWindowDto,
   ) {
-    return this.metricsService.getSlowEndpoints(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getSlowEndpoints(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('anomalies')
@@ -64,7 +91,12 @@ export class MetricsController {
     @Req() req: ProjectRequest,
     @Query() query: QueryWindowDto,
   ) {
-    return this.metricsService.getAnomalies(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getAnomalies(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('service-health')
@@ -72,12 +104,22 @@ export class MetricsController {
     @Req() req: ProjectRequest,
     @Query() query: QueryWindowDto,
   ) {
-    return this.metricsService.getServiceHealth(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getServiceHealth(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('sla')
   async getSla(@Req() req: ProjectRequest, @Query() query: QueryWindowDto) {
-    return this.metricsService.getSla(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getSla(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('cost-estimation')
@@ -85,7 +127,12 @@ export class MetricsController {
     @Req() req: ProjectRequest,
     @Query() query: QueryWindowDto,
   ) {
-    return this.metricsService.getCostEstimation(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getCostEstimation(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('top-failures')
@@ -97,7 +144,11 @@ export class MetricsController {
       };
     },
   ) {
-    return this.metricsService.getTopFailures(req.project.id);
+    const result: unknown = await this.metricsService.getTopFailures(
+      req.project.id,
+    );
+
+    return result;
   }
 
   @Get('latency-distribution')
@@ -109,7 +160,11 @@ export class MetricsController {
       };
     },
   ) {
-    return this.metricsService.getLatencyDistribution(req.project.id);
+    const result: unknown = await this.metricsService.getLatencyDistribution(
+      req.project.id,
+    );
+
+    return result;
   }
 
   @Get('comparison')
@@ -117,7 +172,12 @@ export class MetricsController {
     @Req() req: ProjectRequest,
     @Query() query: QueryWindowDto,
   ) {
-    return this.metricsService.getComparison(req.project.id, query.hours);
+    const result: unknown = await this.metricsService.getComparison(
+      req.project.id,
+      query.hours,
+    );
+
+    return result;
   }
 
   @Get('endpoint-detail/:endpoint')
@@ -126,10 +186,12 @@ export class MetricsController {
     @Param('endpoint') endpoint: string,
     @Query() query: QueryWindowDto,
   ) {
-    return this.metricsService.getEndpointDetail(
+    const result: unknown = await this.metricsService.getEndpointDetail(
       req.project.id,
       decodeURIComponent(endpoint),
       query.hours,
     );
+
+    return result;
   }
 }

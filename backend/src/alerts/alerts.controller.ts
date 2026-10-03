@@ -115,7 +115,14 @@ export class AlertsController {
   }
 
   @Get('events')
-  async getEvents(@Req() req: any) {
+  async getEvents(
+    @Req()
+    req: Request & {
+      project: {
+        id: string;
+      };
+    },
+  ) {
     return this.alertsService.getEvents(req.project.id);
   }
 

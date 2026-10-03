@@ -1,28 +1,27 @@
-import { Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PassportStrategy } from "@nestjs/passport";
-import {
-  Profile,
-  Strategy,
-} from "passport-github2";
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PassportStrategy } from '@nestjs/passport';
+import { Profile, Strategy } from 'passport-github2';
 
-import { OAuthProfile } from "../types/oauth-profile.type";
+import { OAuthProfile } from '../types/oauth-profile.type';
 
 @Injectable()
-export class GithubStrategy extends PassportStrategy(
-  Strategy,
-  "github",
-) {
+export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
   constructor(configService: ConfigService) {
-    const backendUrl = configService.get<string>("BACKEND_URL") ?? "http://localhost:3001";
+    const backendUrl =
+      configService.get<string>('BACKEND_URL') ?? 'http://localhost:3001';
 
     super({
-      clientID: configService.get<string>("GITHUB_CLIENT_ID") ?? "missing-github-client-id",
+      clientID:
+        configService.get<string>('GITHUB_CLIENT_ID') ??
+        'missing-github-client-id',
       clientSecret:
-        configService.get<string>("GITHUB_CLIENT_SECRET") ?? "missing-github-client-secret",
+        configService.get<string>('GITHUB_CLIENT_SECRET') ??
+        'missing-github-client-secret',
       callbackURL:
-        configService.get<string>("GITHUB_CALLBACK_URL") ?? `${backendUrl}/auth/github/callback`,
-      scope: ["user:email"],
+        configService.get<string>('GITHUB_CALLBACK_URL') ??
+        `${backendUrl}/auth/github/callback`,
+      scope: ['user:email'],
     });
   }
 
@@ -35,8 +34,12 @@ export class GithubStrategy extends PassportStrategy(
 
     return {
       providerAccountId: profile.id,
-      email: primaryEmail ?? "",
-      name: profile.displayName || profile.username || primaryEmail || "GitHub user",
+      email: primaryEmail ?? '',
+      name:
+        profile.displayName ||
+        profile.username ||
+        primaryEmail ||
+        'GitHub user',
       avatarUrl: profile.photos?.[0]?.value,
     };
   }

@@ -1,28 +1,27 @@
-import { Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PassportStrategy } from "@nestjs/passport";
-import {
-  Profile,
-  Strategy,
-} from "passport-google-oauth20";
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PassportStrategy } from '@nestjs/passport';
+import { Profile, Strategy } from 'passport-google-oauth20';
 
-import { OAuthProfile } from "../types/oauth-profile.type";
+import { OAuthProfile } from '../types/oauth-profile.type';
 
 @Injectable()
-export class GoogleStrategy extends PassportStrategy(
-  Strategy,
-  "google",
-) {
+export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(configService: ConfigService) {
-    const backendUrl = configService.get<string>("BACKEND_URL") ?? "http://localhost:3001";
+    const backendUrl =
+      configService.get<string>('BACKEND_URL') ?? 'http://localhost:3001';
 
     super({
-      clientID: configService.get<string>("GOOGLE_CLIENT_ID") ?? "missing-google-client-id",
+      clientID:
+        configService.get<string>('GOOGLE_CLIENT_ID') ??
+        'missing-google-client-id',
       clientSecret:
-        configService.get<string>("GOOGLE_CLIENT_SECRET") ?? "missing-google-client-secret",
+        configService.get<string>('GOOGLE_CLIENT_SECRET') ??
+        'missing-google-client-secret',
       callbackURL:
-        configService.get<string>("GOOGLE_CALLBACK_URL") ?? `${backendUrl}/auth/google/callback`,
-      scope: ["email", "profile"],
+        configService.get<string>('GOOGLE_CALLBACK_URL') ??
+        `${backendUrl}/auth/google/callback`,
+      scope: ['email', 'profile'],
     });
   }
 
@@ -35,8 +34,8 @@ export class GoogleStrategy extends PassportStrategy(
 
     return {
       providerAccountId: profile.id,
-      email: primaryEmail ?? "",
-      name: profile.displayName || primaryEmail || "Google user",
+      email: primaryEmail ?? '',
+      name: profile.displayName || primaryEmail || 'Google user',
       avatarUrl: profile.photos?.[0]?.value,
     };
   }

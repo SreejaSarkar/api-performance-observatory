@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getEndpointDetail } from "@/lib/metrics-api";
 import { useRequireProject } from "@/lib/useRequireProject";
@@ -84,18 +84,23 @@ export default function EndpointDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
+
       const result = (await getEndpointDetail(endpoint)) as EndpointDetailResponse;
       setData(result);
-    } catch (err: any) {
-      setError(err?.message || "Failed to load endpoint details.");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load endpoint details.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [endpoint]);
 
   useRealtimeRefresh(load);
 
@@ -111,7 +116,7 @@ export default function EndpointDetailPage() {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [endpoint, hasProject]);
+  }, [endpoint, hasProject, load]);
 
   if (!hasProject) {
     return null;
@@ -265,7 +270,7 @@ export default function EndpointDetailPage() {
                 </tr>
               </thead>
               <tbody className="text-slate-300">
-                {data.latencyTrend.map((point: any) => (
+                {data.latencyTrend.map((point) => (
                   <tr key={point.time} className="border-t border-slate-800">
                     <td className="p-2 text-xs">{new Date(point.time).toLocaleString()}</td>
                     <td className="p-2">{point.avg}ms</td>
@@ -293,7 +298,7 @@ export default function EndpointDetailPage() {
             Error Breakdown
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {data.errorBreakdown.map((item: any) => (
+            {data.errorBreakdown.map((item) => (
               <div
                 key={item.statusCode}
                 className="bg-slate-800/50 rounded-xl p-4 text-center"

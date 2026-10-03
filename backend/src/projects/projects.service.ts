@@ -1,19 +1,14 @@
-import { Injectable } from "@nestjs/common";
-import { randomUUID } from "crypto";
-import { ProjectRole } from "@prisma/client";
+import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { ProjectRole } from '@prisma/client';
 
-import { PrismaService } from "../prisma/prisma.service";
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ProjectsService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-  async create(
-    name: string,
-    userId: string,
-  ) {
+  async create(name: string, userId: string) {
     return this.prisma.project.create({
       data: {
         name,
@@ -49,7 +44,7 @@ export class ProjectsService {
         },
       },
       orderBy: {
-        createdAt: "desc",
+        createdAt: 'desc',
       },
       include: {
         memberships: {

@@ -4,6 +4,37 @@ import { MetricsService } from '../metrics/metrics.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { AnomaliesService } from '../anomalies/anomalies.service';
 
+type DashboardResponse = {
+  summary: unknown;
+  health: unknown;
+  sla: unknown;
+  alerts: unknown;
+  anomalies: unknown;
+  topFailures: unknown;
+  trend: unknown;
+  traffic: unknown;
+  latencyDistribution: unknown;
+  slowEndpoints: unknown;
+  recentAlerts: unknown[];
+  comparison: unknown;
+  generatedAt: Date;
+};
+
+type DashboardDataTuple = [
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown,
+  unknown[],
+  unknown,
+];
+
 @Injectable()
 export class DashboardService {
   constructor(
@@ -12,21 +43,11 @@ export class DashboardService {
     private readonly anomaliesService: AnomaliesService,
   ) {}
 
-  async getDashboard(projectId: string, hours = 72) {
-    const [
-      summary,
-      health,
-      sla,
-      alerts,
-      anomalies,
-      topFailures,
-      trend,
-      traffic,
-      latencyDistribution,
-      slowEndpoints,
-      recentAlerts,
-      comparison,
-    ] = await Promise.all([
+  async getDashboard(
+    projectId: string,
+    hours = 72,
+  ): Promise<DashboardResponse> {
+    const dashboardData: DashboardDataTuple = await Promise.all([
       this.metricsService.getSummary(projectId, hours),
 
       this.metricsService.getServiceHealth(projectId, hours),
@@ -53,18 +74,18 @@ export class DashboardService {
     ] as const);
 
     return {
-      summary,
-      health,
-      sla,
-      alerts,
-      anomalies,
-      topFailures,
-      trend,
-      traffic,
-      latencyDistribution,
-      slowEndpoints,
-      recentAlerts: recentAlerts.slice(0, 5),
-      comparison,
+      summary: dashboardData[0],
+      health: dashboardData[1],
+      sla: dashboardData[2],
+      alerts: dashboardData[3],
+      anomalies: dashboardData[4],
+      topFailures: dashboardData[5],
+      trend: dashboardData[6],
+      traffic: dashboardData[7],
+      latencyDistribution: dashboardData[8],
+      slowEndpoints: dashboardData[9],
+      recentAlerts: dashboardData[10].slice(0, 5),
+      comparison: dashboardData[11],
       generatedAt: new Date(),
     };
   }

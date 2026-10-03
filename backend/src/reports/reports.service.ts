@@ -5,11 +5,51 @@ import PDFDocument from 'pdfkit';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+type ReportSummary = {
+  periodHours: number;
+  generatedAt: string;
+  totalRequests: number;
+  totalEndpoints: number;
+  avgLatency: number;
+  p95Latency: number;
+  errorRate: number;
+  availability: number;
+  anomalyCount: number;
+};
+
+type ReportEndpoint = {
+  endpoint: string;
+  avgLatency: number;
+  p95Latency: number;
+  p99Latency: number;
+  peakLatency: number;
+  totalRequests: number;
+  errorRate: number;
+  successRate: number;
+};
+
+type ReportData = {
+  summary: ReportSummary | null;
+  endpoints: ReportEndpoint[];
+};
+
+type CsvParser = {
+  parse(input: ReportEndpoint[]): string;
+};
+
+type CsvParserConstructor = new (options: { fields: string[] }) => CsvParser;
+
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async generateReportData(projectId: string, hours = 72) {
+  private createCsvParser(fields: string[]): CsvParser {
+    const ParserConstructor = Parser as unknown as CsvParserConstructor;
+
+    return new ParserConstructor({ fields });
+  }
+
+  async generateReportData(projectId: string, hours = 72): Promise<ReportData> {
     const startDate = new Date(Date.now() - hours * 60 * 60 * 1000);
 
     const metrics = await this.prisma.apiMetric.findMany({
@@ -141,7 +181,7 @@ export class ReportsService {
       'successRate',
     ];
 
-    const parser = new Parser({ fields });
+    const parser = this.createCsvParser(fields);
     const csvData = parser.parse(endpoints);
 
     const header = [
@@ -160,7 +200,7 @@ export class ReportsService {
     return header + csvData;
   }
 
-  async exportJson(projectId: string, hours = 72) {
+  async exportJson(projectId: string, hours = 72): Promise<ReportData> {
     return this.generateReportData(projectId, hours);
   }
 
