@@ -27,7 +27,6 @@ export class MetricsIngestionController {
   @Post('metric')
   @UseGuards(ApiKeyGuard)
   async ingestMetric(@Body() dto: CreateMetricDto, @Req() req: ProjectRequest) {
-    console.log('Metric received:', dto);
     return this.metricsService.createMetric(dto, req.project.id);
   }
 
